@@ -19,6 +19,7 @@ docs/**/*.png
 dist/
 build/
 out/
+release/
 coverage/
 *.tsbuildinfo
 *.log

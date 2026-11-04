@@ -1,5 +1,5 @@
 # pnpm workspace root of the monorepo: the docs tooling lives at the root,
-# the app and shared packages arrive with E-01.
+# the desktop app in apps/desktop (M0-01); shared packages arrive later.
 packages:
   - apps/*
   - packages/*

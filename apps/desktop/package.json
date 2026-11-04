@@ -1,0 +1,25 @@
+{
+  "name": "@house-payments/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "house-payments desktop app: Electron main, preload and renderer",
+  "scripts": {
+    "dev": "echo 'Electron shell arrives with M0-02'",
+    "build": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
+    "lint": "eslint . && prettier --check .",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  }
+}
