@@ -1,0 +1,54 @@
+# CI тестов проекта: проверки документации и тесты проверок.
+# Решение и границы — docs/design/architecture/adr/0015-ci-tests-and-status-polling.md.
+#
+# Сейчас job один и запускается на Ubuntu: тестируются артефакты документации,
+# которые от ОС не зависят. Матрица macOS/Windows/Linux (R-03) добавляется вместе
+# с кодом приложения в E-01/E-12, а фильтры по путям — вместе со сборкой
+# установщиков, чтобы правка docs/ её не запускала (ADR-0013, ADR-0014).
+name: CI
+
+on:
+  push:
+    # Любая ветка: прогон до PR нужен, чтобы проверить сам workflow и опрос
+    # результатов. Теги сюда не входят.
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Новый push в ту же ветку отменяет предыдущий прогон: проверяем последний коммит.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Секретов и записи в репозиторий job не требует; токен только на чтение.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # Имя job = контекст обязательной проверки в ruleset protect-main (ADR-0015).
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        # Версия берётся из поля packageManager в корневом package.json.
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate artifacts and run tests
+        run: pnpm check

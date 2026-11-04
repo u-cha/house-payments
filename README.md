@@ -77,13 +77,14 @@ ADR после принятия не переписываются: новое р
 - Ветка: `<тип>/<id-задачи>-<слаг>`, например `feat/t-mw…-invoice-draft`.
 - Коммиты — Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …), в теле
   строка `Task: <id>`.
-- PR: что/зачем/как проверено/риски; зелёный `pnpm check` (и CI, когда появится);
+- PR: что/зачем/как проверено/риски; зелёный `pnpm check` и job CI `check`;
   squash-merge, ветка удаляется. Merge подтверждает владелец репозитория.
 - Версии — аннотированные теги `vX.Y.Z` на `main` и GitHub Releases; изменения —
   [CHANGELOG.md](CHANGELOG.md). До 1.0 — `0.x`; вехи roadmap: M0 `v0.1.0`,
   M1 `v0.2.0`, M2 `v0.3.0`, M3 `v0.4.0`, M4 `v1.0.0`.
-- CI под три ОС (GitHub Actions: macOS — разработка, Windows и Linux —
-  использование) — эпик E-12.
+- CI тестов уже работает: job `check` на Ubuntu на каждой ветке и PR; опрос —
+  `pnpm ci:status` (ADR-0015). Матрица трёх ОС (macOS — разработка, Windows и
+  Linux — использование) и установщики — эпик E-12.
 
 ## Проверка артефактов
 
@@ -103,6 +104,25 @@ pnpm diagrams:examples  # то же для docs/design/_examples/
 Для рендера нужен локальный Chrome — путь задан в
 [.tools/puppeteer-config.json](.tools/puppeteer-config.json). PNG — для показа в
 чате/просмотрщике, SVG — для вставки в документы.
+
+## CI и опрос результатов
+
+Каждая ветка и каждый PR проверяются GitHub Actions: workflow
+[ci.yml](.github/workflows/ci.yml), job `check` — установка зависимостей и
+`pnpm check` на Ubuntu. Устройство и границы — [ADR-0015](docs/design/architecture/adr/0015-ci-tests-and-status-polling.md);
+матрица macOS/Windows/Linux появится вместе с кодом приложения (E-01/E-12).
+
+```bash
+pnpm ci:status                  # последний прогон текущей ветки
+pnpm ci:status --wait           # дождаться завершения (по умолчанию 30 минут)
+pnpm ci:status --pr 12 --wait   # прогон HEAD пул-реквеста
+pnpm ci:status --json           # машинный вывод
+```
+
+Коды выхода: `0` — успех, `1` — прогон упал, `2` — идёт или не найден, `64` —
+ошибка аргументов. Для упавшего прогона скрипт подсказывает
+`gh run view <id> --log-failed`. Нужен авторизованный `gh` (`gh auth status`);
+секретов скрипт не читает.
 
 ## Скиллы проекта (вендоренные)
 

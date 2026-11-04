@@ -13,6 +13,10 @@
 - Правила работы для агентов и людей — [AGENTS.md](AGENTS.md).
 - Вендоренные скиллы закреплены в [skills.lock.json](skills.lock.json) и
   восстанавливаются командой `pnpm bootstrap`.
+- CI тестов на GitHub Actions: job `check` запускает `pnpm check` на Ubuntu на
+  каждой ветке и PR ([ADR-0015](docs/design/architecture/adr/0015-ci-tests-and-status-polling.md)).
+- Скрипт `pnpm ci:status` для опроса результатов CI: ветка/коммит/PR, ожидание,
+  JSON и коды выхода для цикла доработок после тестов.
 
 ### Changed
 
