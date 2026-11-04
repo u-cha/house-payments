@@ -23,7 +23,8 @@
 | [0012](0012-receipt-recognition.md) | Локальное распознавание квитанций с обязательным подтверждением | proposed | 2026-11-04 | — |
 | [0013](0013-repository-docs-and-versioning.md) | Репозиторий, хранение документации и процесс ведения git | accepted | 2026-11-04 | — |
 | [0014](0014-public-repo-and-enforced-rules.md) | Публичный репозиторий и форсируемые правила `main` | accepted | 2026-11-04 | уточняет п. 5 ADR-0013 |
-| [0015](0015-ci-tests-and-status-polling.md) | CI тестов и опрос результатов прогонов | accepted | 2026-11-04 | — |
+| [0015](0015-ci-tests-and-status-polling.md) | CI тестов и опрос результатов прогонов | superseded by [0016](0016-ci-triggers-on-pull-request.md) | 2026-11-04 | — |
+| [0016](0016-ci-triggers-on-pull-request.md) | Триггеры CI — только pull request в `main` | accepted | 2026-11-04 | ADR-0015 |
 | [0017](0017-sync-main-before-push.md) | Свежий `main` перед пушем: скрипт, хук, требование актуальности | accepted | 2026-11-04 | — |
 
 Решения, не требующие отдельного ADR, перечислены в
