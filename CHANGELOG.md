@@ -18,6 +18,9 @@
 
 - Корневой `package.json` переименован в `house-payments` (монорепозиторий);
   добавлен скрипт `bootstrap`.
+- Репозиторий переведён в публичный, на `main` включены форсируемые rulesets
+  (PR, линейная история, запрет force-push и удаления), на теги `v*` — запрет
+  удаления и перемещения ([ADR-0014](docs/design/architecture/adr/0014-public-repo-and-enforced-rules.md)).
 
 ## [0.1.0] — не выпущено (веха M0)
 

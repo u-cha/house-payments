@@ -44,7 +44,7 @@ docs/design/
     context.mmd            C4 L1 — приложение и внешние участники
     containers.mmd         C4 L2 — Electron, SQLite, системное хранилище
     components.mmd         C4 L3 — модули ядра
-    adr/                   журнал решений ADR-0001…0013
+    adr/                   журнал решений ADR-0001…0014
   review/
     consistency-2026-11-04.md  ревью консистентности и принятые решения
   ux/

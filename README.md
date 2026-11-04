@@ -71,7 +71,9 @@ ADR после принятия не переписываются: новое р
 
 ## Как ведётся git
 
-- `main` защищён: прямых коммитов нет, только через pull request.
+- Репозиторий публичный (ADR-0014); `main` защищён rulesets на GitHub: прямые
+  коммиты и force-push невозможны, только через pull request. Правила и причина
+  публичности — [ADR-0014](docs/design/architecture/adr/0014-public-repo-and-enforced-rules.md).
 - Ветка: `<тип>/<id-задачи>-<слаг>`, например `feat/t-mw…-invoice-draft`.
 - Коммиты — Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …), в теле
   строка `Task: <id>`.

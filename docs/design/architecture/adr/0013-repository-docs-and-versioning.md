@@ -110,8 +110,10 @@ bootstrap-скрипт, который клонирует вложенный р�
    Вехи roadmap отображаются на теги: M0 — `v0.1.0`, M1 — `v0.2.0`, M2 — `v0.3.0`,
    M3 — `v0.4.0`, M4 — `v1.0.0`. Исправления — `PATCH`, новые возможности —
    `MINOR`, несовместимые изменения данных/формата — `MAJOR`.
-5. **Remote:** `origin` = приватный GitHub-репозиторий
-   `git@github.com:u-cha/house-payments.git`. CI — GitHub Actions с матрицей
+5. **Remote:** `origin` = GitHub-репозиторий
+   `git@github.com:u-cha/house-payments.git` (с 2026-11-04 — публичный, см.
+   [ADR-0014](0014-public-repo-and-enforced-rules.md) — уточняет пункт о
+   видимости). CI — GitHub Actions с матрицей
    macOS/Windows/Linux (E-12, R-03); причина выбора GitHub — на нём есть раннеры
    всех трёх ОС, у GitLab.com бесплатных macOS-раннеров нет.
 6. **Вендоренные скиллы:** `third_party/` в `.gitignore`; источник истины —
