@@ -1,0 +1,17 @@
+# pnpm workspace root of the monorepo: the docs tooling lives at the root,
+# the app and shared packages arrive with E-01.
+packages:
+  - apps/*
+  - packages/*
+
+# Two transitive dependencies declare postinstall scripts we deliberately skip:
+# - oracledb (via @dbml/cli) is never used by the docs tooling;
+# - puppeteer (via @mermaid-js/mermaid-cli) must not download Chromium:
+#   diagram rendering uses the local Chrome path from .tools/puppeteer-config.json.
+# They are pinned by pnpm-lock.yaml; declaring them here keeps `pnpm install`
+# reproducible instead of failing on an interactive approve-builds prompt.
+ignoredBuiltDependencies:
+  - oracledb
+  - puppeteer
+
+strictDepBuilds: false

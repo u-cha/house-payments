@@ -1,20 +1,62 @@
-# house-payments — проектирование
+# house-payments
 
 Личное приложение для учёта платежей, счетов и оплат по квартирам, домам и
 машиноместам. Настольное, локальное; данные — в одном переносимом файле.
 Квитанции можно вносить вручную или загружать фото, сканы и PDF с **локальным
-распознаванием** и обязательным подтверждением. Этот репозиторий содержит
-**только проектные артефакты**, не код приложения.
+распознаванием** и обязательным подтверждением.
+
+Репозиторий — **монорепо проекта**: проектная документация и код приложения живут
+вместе и версионируются одним тегом. Решение, структура и правила —
+[ADR-0013](docs/design/architecture/adr/0013-repository-docs-and-versioning.md).
+Код появится в `apps/desktop/` начиная с эпика E-01
+([roadmap](docs/design/roadmap.md)); сейчас в репозитории — проектные артефакты и
+инструменты их проверки.
 
 Прежняя проработка под SaaS для управляющих компаний сохранена в
 [archive/saas-2026-11-04/](archive/saas-2026-11-04/design/README.md) и не является
 действующей.
 
-## Правило: текст — источник истины, картинка — производная
+## Быстрый старт
 
-Всё, из чего принимаются решения, лежит текстом в git. Диаграммы рендерятся из
-текста, а не рисуются руками. Поэтому схема не может «устареть отдельно от
-документа».
+```bash
+git clone git@github.com:u-cha/house-payments.git
+cd house-payments
+pnpm install          # зависимости инструментов документации
+pnpm bootstrap        # восстановить third_party/ и .dsh/skills/ (см. «Скиллы»)
+pnpm check            # validate + тесты: обязательная проверка перед PR
+```
+
+Требования: Node.js 22+, pnpm, git. Для рендера диаграмм — локальный Chrome
+(см. ниже).
+
+## Структура
+
+```
+docs/design/        проектные артефакты: бриф, ADR, домен, архитектура, UX, roadmap
+archive/            прежние проработки, не действующие
+apps/desktop/       код приложения (Electron: main/preload/renderer) — с E-01
+packages/           общие пакеты pnpm-воркспейса — по мере появления
+scripts/, tests/    проверки артефактов и рендер диаграмм
+skills.lock.json    закреплённые версии вендоренных скиллов
+.dsh/skills/        симлинки на скиллы проекта (создаёт pnpm bootstrap)
+third_party/        клоны чужих репозиториев — не в git, восстанавливаются бутстрапом
+```
+
+Что где можно менять и какие правила обязательны — [AGENTS.md](AGENTS.md). Кратко:
+код — только в `apps/`/`packages/`, проектные решения — только в `docs/`; в `main`
+напрямую не коммитят.
+
+## Документация
+
+Вся проектная документация — в репозитории и версионируется вместе с кодом: тег
+релиза фиксирует одновременно состояние кода и решений, поэтому они не могут
+разъехаться. Точка входа — [docs/design/README.md](docs/design/README.md):
+бриф, глоссарий, модель данных, инварианты, архитектура, ADR, UX, roadmap,
+трассировка, риски.
+
+Правило: **текст — источник истины, картинка — производная**. Всё, из чего
+принимаются решения, лежит текстом в git; диаграммы рендерятся из текста, а не
+рисуются руками. Поэтому схема не может «устареть отдельно от документа».
 
 | Артефакт | Источник (коммитим) | Производное (генерим) |
 |---|---|---|
@@ -23,83 +65,67 @@
 | Решения | `docs/design/architecture/adr/NNNN-*.md` | — |
 | Спеки, глоссарий, инварианты, roadmap | `docs/design/**/*.md` | — |
 
-## Рендер диаграмм
+ADR после принятия не переписываются: новое решение — новый ADR со ссылкой
+«Заменяет: ADR-NNNN». Пользовательская документация (установка, руководство)
+появится в `docs/user/` в E-12.
 
-```bash
-pnpm install          # один раз
-pnpm diagrams         # все .mmd и .dbml под docs/  -> .svg + .png рядом с источником
-pnpm diagrams:examples # то же для docs/design/_examples/
-```
+## Как ведётся git
 
-Нужен локальный Chrome — путь задан в [.tools/puppeteer-config.json](.tools/puppeteer-config.json).
-PNG делается для показа в чате/просмотрщике, SVG — для вставки в документы.
+- `main` защищён: прямых коммитов нет, только через pull request.
+- Ветка: `<тип>/<id-задачи>-<слаг>`, например `feat/t-mw…-invoice-draft`.
+- Коммиты — Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …), в теле
+  строка `Task: <id>`.
+- PR: что/зачем/как проверено/риски; зелёный `pnpm check` (и CI, когда появится);
+  squash-merge, ветка удаляется. Merge подтверждает владелец репозитория.
+- Версии — аннотированные теги `vX.Y.Z` на `main` и GitHub Releases; изменения —
+  [CHANGELOG.md](CHANGELOG.md). До 1.0 — `0.x`; вехи roadmap: M0 `v0.1.0`,
+  M1 `v0.2.0`, M2 `v0.3.0`, M3 `v0.4.0`, M4 `v1.0.0`.
+- CI под три ОС (GitHub Actions: macOS — разработка, Windows и Linux —
+  использование) — эпик E-12.
 
 ## Проверка артефактов
 
 ```bash
-pnpm validate   # ссылки, идентификаторы, DBML, ADR, диаграммы
-pnpm test       # тесты самих проверок + прогон по репозиторию
-pnpm check      # validate + test
+pnpm validate           # ссылки, идентификаторы, DBML, ADR, диаграммы
+pnpm test               # тесты самих проверок + прогон по репозиторию
+pnpm check              # validate + test
+pnpm diagrams           # все .mmd и .dbml под docs/ -> .svg + .png рядом с источником
+pnpm diagrams:examples  # то же для docs/design/_examples/
 ```
 
-## Методология: вендоренные скиллы
+Проверки — fitness functions: падают, если модель потеряла деньги `INTEGER`,
+период стал свободной строкой, ADR лишился раздела «Решение», а требование
+осталось без строки трассировки. Негативные тесты в `tests/` доказывают, что
+проверки умеют падать, а не только зеленеть.
 
-Скиллы ставятся в проект, а не глобально: источник — git-клон в `third_party/`,
-видимость для агента — симлинк `.dsh/skills/<имя>` на папку скилла. DSH читает
-скиллы проекта из `.dsh/skills/`; глобальные (`~/.dsh/skills`) остаются только
-процессными.
+Для рендера нужен локальный Chrome — путь задан в
+[.tools/puppeteer-config.json](.tools/puppeteer-config.json). PNG — для показа в
+чате/просмотрщике, SVG — для вставки в документы.
 
-Основной набор — подмножество [magnus919/agent-skills](https://github.com/magnus919/agent-skills)
-(MIT), sparse checkout, коммит `4f03205`. Используется как справочники по
-конкретным вопросам, а не как процесс:
+## Скиллы проекта (вендоренные)
 
-- `software-architecture/` — характеристики, границы, tradeoff-записи
-- `c4-diagramming/`, `mermaid-diagrams/` — как рисовать
-- `adr-authoring/` — журнал решений
-- `data-architect/` — модель данных, владение, глоссарий
-- `api-design-and-evolution/`, `privacy-engineering`, `secure-software-engineering/`,
-  `product-design-and-ux/` — на соответствующих фазах
-- `programming-principles/` — выжимки по распределённым данным (DDIA)
+Скиллы ставятся в проект, а не глобально: источник — частичный git-клон в
+`third_party/`, видимость для агента — симлинк `.dsh/skills/<имя>` на папку
+скилла. DSH читает скиллы проекта из `.dsh/skills/`; глобальные (`~/.dsh/skills`)
+остаются только процессными.
 
-Electron-разработка (приложение —
-[ADR-0009](docs/design/architecture/adr/0009-cross-platform-desktop-and-installers.md),
-стек — [ADR-0010](docs/design/architecture/adr/0010-implementation-stack.md)):
+`third_party/` не коммитится. Источник истины — [skills.lock.json](skills.lock.json):
+репозиторий, sparse-пути, коммит, лицензия. `pnpm bootstrap` клонирует недостающее,
+переключает на закреплённый коммит и пересоздаёт симлинки. Обновление скилла —
+изменить коммит в `skills.lock.json`, выполнить `pnpm bootstrap`, проверить, что
+скилл загружается, и закоммитить изменение вместе с пересозданными симлинками.
 
-| Скилл | Источник | Лицензия | Что даёт |
-|---|---|---|---|
-| `electron-development` | [Mindrally/skills](https://github.com/Mindrally/skills/tree/main/electron-development) @ `7682ca7` | Apache-2.0 | базовые правила: main/preload/renderer, IPC, context isolation, CSP, сборка и автообновление |
-| `desktop-ui-electron` | [agents-inc/skills](https://github.com/agents-inc/skills/tree/main/src/skills/desktop-ui-electron) @ `845a1f2` | MIT | окна без рамки и кастомный title bar, tray, меню, dock badge, vibrancy/Mica, kiosk, сохранение геометрии окна |
+| Набор | Что даёт | Лицензия |
+|---|---|---|
+| [magnus919/agent-skills](https://github.com/magnus919/agent-skills) | `software-architecture`, `c4-diagramming`, `mermaid-diagrams`, `adr-authoring`, `data-architect`, `programming-principles` и др. — справочники по конкретным вопросам | MIT |
+| [Mindrally/skills](https://github.com/Mindrally/skills/tree/main/electron-development) | `electron-development`: main/preload/renderer, IPC, context isolation, CSP, сборка | Apache-2.0 |
+| [agents-inc/skills](https://github.com/agents-inc/skills/tree/main/src/skills/desktop-ui-electron) | `desktop-ui-electron`: окна без рамки, title bar, tray, меню, vibrancy/Mica | MIT |
 
-Обновление — `git -C third_party/<клон> pull`: клоны частичные (`--filter=blob:none`)
-со sparse checkout, поэтому скачивается только нужная папка.
-
-Добавить новый скилл:
-
-```bash
-git clone --filter=blob:none --sparse <repo-url> third_party/<repo>
-git -C third_party/<repo> sparse-checkout set <path-to-skill>
-ln -s ../../third_party/<repo>/<path-to-skill> .dsh/skills/<name>
-```
-
-Имя каталога в `.dsh/skills/` должно совпадать с `name` во frontmatter `SKILL.md`:
-по нему скилл вызывается. Каталог без `SKILL.md` игнорируется.
-
+Имя каталога в `.dsh/skills/` должно совпадать с `name` во frontmatter
+`SKILL.md`: по нему скилл вызывается. Каталог без `SKILL.md` игнорируется.
 Процессные скиллы (brainstorming, планы, ревью, проверка) — из superpowers в
-`~/.dsh/skills`.
-
-## Структура
-
-```
-docs/design/
-  brief.md, traceability.md, roadmap.md
-  _examples/        проверка рендер-пайплайна (не канон)
-  domain/           глоссарий, сущности, инварианты, model.dbml, жизненные циклы
-  architecture/     C4, сценарии качества, масштабирование, adr/
-  ux/               сценарии использования, экраны
-archive/            предыдущие проработки, не действующие
-.dsh/skills/        симлинки на вендоренные скиллы (см. «Методология»)
-third_party/        git-клоны источников скиллов (sparse checkout)
-```
+`~/.dsh/skills`. На Windows симлинки требуют режима разработчика или WSL; CI эти
+скиллы не использует.
 
 ## Установка приложения (план)
 

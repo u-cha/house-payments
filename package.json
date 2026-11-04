@@ -1,13 +1,14 @@
 {
-  "name": "house-payments-design",
+  "name": "house-payments",
   "private": true,
-  "description": "Design artifacts tooling (diagrams) for house-payments",
+  "description": "house-payments: product monorepo — design artifacts and the desktop app",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "validate": "node scripts/validate-docs.mjs",
     "check": "pnpm validate && pnpm test",
     "diagrams": "bash scripts/render-diagrams.sh",
-    "diagrams:examples": "bash scripts/render-diagrams.sh --with-examples"
+    "diagrams:examples": "bash scripts/render-diagrams.sh --with-examples",
+    "bootstrap": "node scripts/bootstrap-skills.mjs"
   },
   "devDependencies": {
     "@dbml/cli": "^11.0.1",

@@ -21,6 +21,7 @@
 | [0010](0010-implementation-stack.md) | Стек реализации: TypeScript, Electron, React, SQLite | proposed | 2026-11-04 | — |
 | [0011](0011-cloud-sync-approach.md) | Подход к будущей синхронизации с облаком | proposed | 2026-11-04 | — |
 | [0012](0012-receipt-recognition.md) | Локальное распознавание квитанций с обязательным подтверждением | proposed | 2026-11-04 | — |
+| [0013](0013-repository-docs-and-versioning.md) | Репозиторий, хранение документации и процесс ведения git | accepted | 2026-11-04 | — |
 
 Решения, не требующие отдельного ADR, перечислены в
 [architecture/README.md](../README.md) §3: они локальны, обратимы и меняются без

@@ -1,0 +1,56 @@
+{
+  "$comment": "Vendored agent skills: source of truth for third_party/ clones. Run `pnpm bootstrap` after a fresh clone. Update a commit only together with a re-check that the skill still loads.",
+  "schemaVersion": 1,
+  "repos": [
+    {
+      "dir": "third_party/agent-skills",
+      "url": "https://github.com/magnus919/agent-skills.git",
+      "commit": "4f03205616b01360374f458f471791188f448591",
+      "cloneArgs": ["--filter=blob:none", "--sparse"],
+      "sparsePaths": [
+        "adr-authoring",
+        "api-design-and-evolution",
+        "c4-diagramming",
+        "data-architect",
+        "mermaid-diagrams",
+        "multi-tenant-saas-architecture",
+        "privacy-engineering",
+        "product-design-and-ux",
+        "programming-principles",
+        "secure-software-engineering",
+        "software-architecture"
+      ],
+      "license": "MIT",
+      "skills": {
+        "adr-authoring": "adr-authoring",
+        "c4-diagramming": "c4-diagramming",
+        "data-architect": "data-architect",
+        "mermaid-diagrams": "mermaid-diagrams",
+        "programming-principles": "programming-principles",
+        "software-architecture": "software-architecture"
+      }
+    },
+    {
+      "dir": "third_party/agents-inc-skills",
+      "url": "https://github.com/agents-inc/skills.git",
+      "commit": "845a1f2833eedc494bb82e3172710c06cab547a1",
+      "cloneArgs": ["--filter=blob:none", "--sparse"],
+      "sparsePaths": ["src/skills/desktop-ui-electron"],
+      "license": "MIT",
+      "skills": {
+        "desktop-ui-electron": "src/skills/desktop-ui-electron"
+      }
+    },
+    {
+      "dir": "third_party/mindrally-skills",
+      "url": "https://github.com/Mindrally/skills.git",
+      "commit": "7682ca77710e0971eab4e0ae5dddfa281aea0ba5",
+      "cloneArgs": ["--filter=blob:none", "--sparse"],
+      "sparsePaths": ["electron-development"],
+      "license": "Apache-2.0",
+      "skills": {
+        "electron-development": "electron-development"
+      }
+    }
+  ]
+}
