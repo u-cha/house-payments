@@ -17,11 +17,15 @@
   каждой ветке и PR ([ADR-0015](docs/design/architecture/adr/0015-ci-tests-and-status-polling.md)).
 - Скрипт `pnpm ci:status` для опроса результатов CI: ветка/коммит/PR, ожидание,
   JSON и коды выхода для цикла доработок после тестов.
+- Правило «свежий `main` перед пушем»: команда `pnpm sync:main` (fetch + merge
+  `origin/main`), `pre-push`-хук и требование актуальной ветки в ruleset;
+  смысловой конфликт выносится пользователю ([ADR-0017](docs/design/architecture/adr/0017-sync-main-before-push.md)).
 
 ### Changed
 
 - Корневой `package.json` переименован в `house-payments` (монорепозиторий);
   добавлен скрипт `bootstrap`.
+- `pnpm bootstrap` включает локальный `pre-push`-хук из `.githooks/`.
 - Репозиторий переведён в публичный, на `main` включены форсируемые rulesets
   (PR, линейная история, запрет force-push и удаления), на теги `v*` — запрет
   удаления и перемещения ([ADR-0014](docs/design/architecture/adr/0014-public-repo-and-enforced-rules.md)).
