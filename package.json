@@ -6,10 +6,12 @@
     "test": "node --test tests/*.test.mjs",
     "validate": "node scripts/validate-docs.mjs",
     "check": "pnpm validate && pnpm test",
+    "ci:status": "node scripts/ci-status.mjs",
     "diagrams": "bash scripts/render-diagrams.sh",
     "diagrams:examples": "bash scripts/render-diagrams.sh --with-examples",
     "bootstrap": "node scripts/bootstrap-skills.mjs"
   },
+  "packageManager": "pnpm@12.15.0",
   "devDependencies": {
     "@dbml/cli": "^11.0.1",
     "@mermaid-js/mermaid-cli": "^11.17.1",
