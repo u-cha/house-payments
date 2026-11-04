@@ -1,0 +1,50 @@
+%% C4 Level 3 — компоненты финансового ядра «house-payments».
+%% Стандартный Mermaid flowchart: C4-плагин в пайплайне рендера недоступен.
+%% Показаны только разрешённые зависимости (правило 1–5 из ./core-modules.md §1).
+%% Ребро A --> B читается как «A зависит от публичного контракта B».
+flowchart TD
+    subgraph core["Финансовое ядро — модульный монолит, один процесс"]
+        ledger["ledger<br/>распределение платежей, аванс,<br/>выписка по лицевому счёту"]
+        invoicing["invoicing<br/>счета и строки, выставление,<br/>аннулирование, состояние оплаты"]
+        payments["payments<br/>платежи, идемпотентность,<br/>импорт выписки, сверка"]
+        billing["billing<br/>расчётные периоды, начисления,<br/>массовые прогоны, сторно"]
+        tariffs["tariffs<br/>услуги и версионируемые тарифы"]
+        registry["registry<br/>дома, помещения, лицевые счета,<br/>плательщики"]
+        shared["shared<br/>Money, Period, ids, errors,<br/>clock, механика outbox"]
+    end
+
+    subgraph storage["PostgreSQL — одна база, схемы модулей"]
+        pg[("Таблицы модулей, outbox_event<br/>tenant_id NOT NULL, RLS")]
+    end
+
+    ledger -->|"ApplySettlement — порт в общей транзакции"| invoicing
+    ledger -->|"чтение платежа через публичный контракт"| payments
+
+    invoicing -->|"GetAccruals — основание счёта"| billing
+    billing -->|"тариф на период"| tariffs
+    invoicing -->|"лицевые счета и плательщики"| registry
+    billing -->|"лицевые счета для начисления"| registry
+    payments -->|"лицевой счёт платежа"| registry
+    tariffs -->|"область действия тарифа"| registry
+
+    ledger -->|"идентификаторы, ошибки"| shared
+    invoicing -->|"идентификаторы, ошибки"| shared
+    payments -->|"идентификаторы, ошибки"| shared
+    billing -->|"период, деньги, сторно-механика"| shared
+    tariffs -->|"период, деньги"| shared
+    registry -->|"идентификаторы, ошибки"| shared
+
+    ledger -.->|"репозиторий"| pg
+    invoicing -.->|"репозиторий"| pg
+    payments -.->|"репозиторий"| pg
+    billing -.->|"репозиторий"| pg
+    tariffs -.->|"репозиторий"| pg
+    registry -.->|"репозиторий"| pg
+    shared -->|"INSERT outbox_event в транзакции модуля"| pg
+
+    classDef module fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef kernel fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef store fill:#2e7d32,stroke:#1b5e20,color:#ffffff
+    class ledger,invoicing,payments,billing,tariffs,registry module
+    class shared kernel
+    class pg store

@@ -1,0 +1,17 @@
+# Repository-wide line-ending and binary rules (CI runs on macOS, Windows and Linux).
+* text=auto eol=lf
+
+# Binary assets: never normalize, never show as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.sqlite binary
+*.hpd binary
+
+# Lockfiles and generated text: keep deterministic diffs.
+pnpm-lock.yaml text eol=lf

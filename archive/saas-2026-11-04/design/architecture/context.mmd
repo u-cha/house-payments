@@ -1,0 +1,35 @@
+%% C4 Level 1 — системный контекст «house-payments».
+%% Стандартный Mermaid flowchart: C4-плагин в пайплайне рендера недоступен.
+%% Источник истины: ../brief.md (§1–§3), ./core-modules.md (§1).
+flowchart LR
+    admin["Администратор УК"]
+    accountant["Бухгалтер"]
+    cashier["Кассир"]
+    resident["Собственник"]
+
+    subgraph boundary["Система «house-payments» — SaaS"]
+        hp["Учёт начислений, счетов, платежей и распределений.<br/>Мультитенантность: одна инсталляция — много организаций."]
+    end
+
+    bank["Банк"]
+    acquiring["Эквайринг"]
+    onec["1С"]
+    notify["Email/SMS-провайдер"]
+
+    admin -->|"HTTPS: настройка домов, услуг, тарифов, ролей"| hp
+    accountant -->|"HTTPS: массовые начисления, счета, сторно"| hp
+    cashier -->|"HTTPS: приём и распределение платежей"| hp
+    resident -->|"HTTPS: личный кабинет, только чтение"| hp
+
+    bank -->|"выписка: файл или API"| hp
+    hp -->|"сверка, запрос выписки"| bank
+    acquiring -->|"HTTPS-вебхук о результате платежа"| hp
+    hp -->|"экспорт проводок: файл/API"| onec
+    hp -->|"Email/SMS: счёт выставлен, платёж поступил"| notify
+
+    classDef external fill:#eeeeee,stroke:#888888,color:#222222
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
+    class bank,acquiring,onec,notify external
+    class admin,accountant,cashier,resident person
+    class hp system

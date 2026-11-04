@@ -1,0 +1,49 @@
+sequenceDiagram
+    autonumber
+    actor Cashier as Кассир
+    participant UI as Web UI
+    participant API as API слой
+    participant Pay as payments
+    participant Led as ledger
+    participant Inv as invoicing
+    participant DB as PostgreSQL
+    participant Relay as outbox relay
+    participant Rep as reporting
+
+    Cashier->>UI: ввод платежа (счёт, сумма, дата, канал)
+    UI->>API: POST /payments + Idempotency-Key
+    API->>Pay: RegisterPayment
+    Pay->>DB: BEGIN
+    Pay->>DB: SELECT платежа по idempotency_key
+    alt платёж уже существует
+        DB-->>Pay: существующая запись
+        Pay-->>API: 200 OK, тот же платёж
+        API-->>UI: платёж показан, дубль не создан
+    else новый платёж
+        Pay->>DB: INSERT payment, audit_event, outbox_event
+        DB-->>Pay: COMMIT
+        Pay-->>API: 201 Created
+        API-->>UI: платёж создан
+        Relay->>DB: чтение outbox
+        Relay->>Rep: PaymentRegistered
+    end
+
+    UI->>API: POST /payments/{id}/allocations (FIFO)
+    API->>Led: AllocatePayment
+    Led->>DB: BEGIN
+    Led->>Inv: GetOpenInvoices(accountId)
+    Inv-->>Led: счета с остатками
+    Led->>DB: SELECT счёт FOR UPDATE
+    alt остаток счёта меньше суммы
+        Led->>DB: INSERT allocation (остаток)
+        Led->>Inv: ApplySettlement(invoiceId, delta)
+        Inv->>DB: UPDATE invoice.paid_minor
+        Led->>DB: INSERT allocation, audit, outbox
+        DB-->>Led: COMMIT
+        Led-->>API: распределение частичное
+    else остаток платежа исчерпан
+        Led->>DB: ROLLBACK или частичная запись по правилам
+        Led-->>API: 422 BUSINESS_RULE
+        API-->>UI: объяснение с причиной
+    end
+    Relay->>Rep: PaymentAllocated, InvoiceSettled

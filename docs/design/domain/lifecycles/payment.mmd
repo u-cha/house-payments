@@ -1,0 +1,19 @@
+%% Жизненный цикл платежа (payment) и его распределений.
+%% Источник: ../model.dbml, ../invariants.md (INV-07…INV-09, INV-13, INV-22).
+stateDiagram-v2
+    [*] --> Registered: RegisterPayment (idempotency_key + квитанции)
+    Registered --> PartiallyAllocated: часть суммы распределена
+    Registered --> Allocated: выбранные квитанции закрыты / остаток — аванс
+    PartiallyAllocated --> Allocated: остаток распределён или оставлен авансом
+    Registered --> Reversed: сторно до распределений
+    PartiallyAllocated --> Reversed: сторно после отмены распределений
+    Allocated --> Reversed: сторно после отмены распределений
+    Allocated --> [*]
+    Reversed --> [*]
+
+    note right of Registered
+        Платёж создаётся сразу с распределением по выбранным квитанциям (INV-22).
+        Повтор с тем же ключом возвращает существующий платёж (INV-13).
+        Неразнесённый остаток виден как аванс (INV-09).
+        Отмена распределения возвращает деньги в аванс, а не удаляет их.
+    end note

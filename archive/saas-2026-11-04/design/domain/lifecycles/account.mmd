@@ -1,0 +1,18 @@
+stateDiagram-v2
+    direction LR
+
+    state "Открыт" as Open
+    state "Приостановлен" as Suspended
+    state "Закрыт" as Closed
+
+    [*] --> Open: открыть лицевой счёт по помещению
+    Open --> Suspended: приостановить операции
+    Suspended --> Open: возобновить операции
+    Open --> Closed: закрыть при balance = 0 и credit = 0 (INV-08)
+    Suspended --> Closed: закрыть при balance = 0 и credit = 0 (INV-08)
+    Closed --> [*]
+
+    note right of Closed
+        Закрытие необратимо. Ненулевой баланс
+        или ненулевой аванс блокируют закрытие (INV-08).
+    end note

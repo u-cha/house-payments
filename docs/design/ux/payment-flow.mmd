@@ -1,0 +1,31 @@
+%% Последовательность «приём платежа → распределение → баланс» (личное приложение).
+%% Источник: scenarios.md (US-07, US-08), core-modules.md §4, §7; ADR-0003.
+sequenceDiagram
+    autonumber
+    actor User as Пользователь
+    participant UI as Renderer (React)
+    participant IPC as IPC + Zod
+    participant Led as ledger
+    participant Pay as payments
+    participant Inv as invoicing
+    participant DB as SQLite
+
+    User->>UI: сумма, дата, лицевой счёт, выбранные квитанции
+    UI->>IPC: RegisterPaymentWithAllocation(payload, idempotencyKey)
+    IPC->>Led: use case
+    Led->>DB: BEGIN IMMEDIATE (один писатель)
+    Led->>Pay: CreatePayment (порт payments)
+    Pay->>DB: INSERT payment (проверка idempotency_key)
+    Led->>DB: INSERT allocation (по выбранным квитанциям)
+    Led->>Inv: ApplySettlement (в той же транзакции)
+    Inv->>DB: UPDATE invoice.status / paid-инфо
+    Led->>DB: UPDATE balance (долг, переплата, аванс)
+    Led->>DB: INSERT audit_event, change_log
+    Led->>DB: COMMIT
+    Led-->>UI: платёж, распределения, баланс, аванс
+
+    alt Конфликт записи или остаток изменился
+        Led-->>UI: CONCURRENT_MODIFICATION (retryable)
+        UI->>IPC: повтор с новым чтением
+    end
+

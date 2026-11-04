@@ -1,0 +1,28 @@
+stateDiagram-v2
+    direction LR
+    state "Черновик" as Draft
+    state "Выставлен" as Issued
+    state "Частично оплачен" as Partial
+    state "Оплачен" as Paid
+    state "Просрочен" as Overdue
+    state "Закрыт (архив)" as Closed
+    state "Отменён (сторно)" as Void
+
+    [*] --> Draft
+    Draft --> Issued: выставить (фиксируется период и сумма)
+    Draft --> Void: отменить до выставления
+    Issued --> Partial: платёж меньше суммы
+    Issued --> Paid: платёж равен сумме
+    Issued --> Overdue: срок оплаты прошёл
+    Partial --> Paid: доплата до суммы
+    Partial --> Overdue: срок прошёл, остаток > 0
+    Overdue --> Paid: оплата с пени
+    Paid --> Closed: период закрыт ревизией
+    Issued --> Void: ошибка начисления, сторно
+    Partial --> Void: ошибка начисления, сторно
+    Closed --> [*]
+
+    note right of Paid
+        Оплаченный счёт не удаляется и не правится.
+        Изменение только через сторно + новое начисление.
+    end note

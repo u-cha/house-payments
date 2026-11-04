@@ -1,0 +1,35 @@
+# dependencies and tool caches
+node_modules/
+.cache/
+.pnpm-store/
+.tools/*.local.json
+
+# DSH task worktrees and local agent state
+.dsh-worktrees/
+.dsh/local/
+
+# vendored skill clones: restored with `pnpm bootstrap`, pinned in skills.lock.json
+third_party/
+
+# derived diagram renders (sources are .mmd / .dbml, regenerate with `pnpm diagrams`)
+docs/**/*.svg
+docs/**/*.png
+
+# build output and test artifacts
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+*.log
+
+# local environment and secrets
+.env
+.env.*
+*.local
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

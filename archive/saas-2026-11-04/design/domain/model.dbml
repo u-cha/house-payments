@@ -1,0 +1,640 @@
+// Каноническая модель данных MVP house-payments.
+// Основание: docs/design/brief.md (C-01..C-07), docs/design/domain/glossary.md,
+// docs/design/domain/entities.md, docs/design/domain/invariants.md (INV-01..INV-20).
+//
+// Соглашения модели:
+// - id — UUIDv7 (генерируется приложением; сортируемость по времени, без утечки объёма).
+// - Деньги — только bigint в копейках (minor units), без float/double/numeric (INV-01, C-02).
+//   Исключение — ставка тарифа: numeric(14,4), это цена за единицу, а не сумма.
+// - Период — varchar(7), CHECK: period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' (INV-02, C-03).
+// - Валюта — char(3), MVP: одна валюта 'RUB' (допущение DM-A-01, открытый вопрос OQ-04).
+// - Время — timestamptz в UTC; created_at/updated_at — технические метки записи.
+// - Мультитенантность: tenant_id NOT NULL в каждой таблице, кроме самой tenant и
+//   глобальных учётных записей/справочников (app_user, role). Для финансовых связей используются
+//   составные FK (tenant_id, parent_id) -> parent(tenant_id, id), чтобы исключить
+//   связь документов разных организаций (INV-16).
+// - CHECK-ограничения и частичные/исключающие индексы, которые DBML не выражает,
+//   зафиксированы в note соответствующей таблицы или колонки и обязательны в SQL-миграциях.
+
+Enum tenant_status {
+  active
+  suspended
+  archived
+}
+
+Enum app_user_status {
+  active
+  blocked
+}
+
+Enum membership_status {
+  active
+  revoked
+}
+
+Enum record_status {
+  active
+  archived
+}
+
+Enum property_kind {
+  apartment
+  house
+  parking
+}
+
+Enum payer_kind {
+  individual
+  legal_entity
+}
+
+Enum payer_relation {
+  owner
+  tenant
+  family_member
+}
+
+Enum account_status {
+  open
+  suspended
+  closed
+}
+
+Enum period_run_status {
+  draft
+  posting
+  posted
+  failed
+}
+
+Enum accrual_kind {
+  regular
+  reversal
+}
+
+Enum accrual_status {
+  draft
+  posted
+  reversed
+}
+
+Enum invoice_status {
+  draft
+  issued
+  partially_paid
+  paid
+  overdue
+  closed
+  void
+}
+
+Enum payment_status {
+  received
+  partially_allocated
+  allocated
+  reversed
+}
+
+Enum payment_channel {
+  manual
+  bank_statement
+  acquiring
+}
+
+Enum import_source {
+  bank_statement
+  acquiring
+}
+
+Enum import_batch_status {
+  received
+  parsing
+  reconciled
+  failed
+}
+
+Enum reconciliation_status {
+  pending
+  matched
+  discrepancy
+  ignored
+}
+
+Enum notification_channel {
+  email
+  sms
+  push
+}
+
+Enum notification_status {
+  pending
+  sent
+  failed
+  read
+}
+
+Enum actor_kind {
+  user
+  system
+}
+
+// ---------------------------------------------------------------------------
+// identity
+// ---------------------------------------------------------------------------
+
+Table tenant {
+  id uuid [pk, note: 'UUIDv7']
+  name varchar(200) [not null]
+  legal_name varchar(300) [null]
+  inn varchar(12) [null, note: 'CHECK: 10 или 12 цифр']
+  currency char(3) [not null, default: 'RUB', note: 'MVP: одна валюта, OQ-04']
+  status tenant_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Организация — граница изоляции данных (C-01). Собственного tenant_id не имеет.'
+}
+
+Table app_user {
+  id uuid [pk, note: 'UUIDv7']
+  email varchar(320) [not null, unique]
+  full_name varchar(200) [not null]
+  status app_user_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Пользователь — глобальная учётная запись. tenant_id не применяется: принадлежность к организациям задаётся через membership. PII минимизированы (C-04).'
+}
+
+Table role {
+  id uuid [pk, note: 'UUIDv7']
+  code varchar(32) [not null, unique, note: 'admin | accountant | cashier | resident | auditor']
+  name varchar(100) [not null]
+  Note: 'Глобальный справочник ролей доступа (FR-12). tenant_id не применяется.'
+}
+
+Table membership {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  app_user_id uuid [not null]
+  role_id uuid [not null]
+  status membership_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  revoked_at timestamptz [null]
+  indexes {
+    (tenant_id, app_user_id) [unique, name: 'uq_membership_tenant_user']
+    (app_user_id) [name: 'ix_membership_user']
+  }
+  Note: 'Членство пользователя в организации с одной ролью. Одна активная запись на пару (tenant, user); смена роли — update, отзыв — status=revoked + revoked_at.'
+}
+
+// ---------------------------------------------------------------------------
+// registry
+// ---------------------------------------------------------------------------
+
+Table building {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  address varchar(500) [not null]
+  status record_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id, id) [unique, name: 'uq_building_tenant_id']
+  }
+}
+
+Table property {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  building_id uuid [not null]
+  kind property_kind [not null]
+  number varchar(50) [not null, note: 'кв. 42, пом. 12-А, м/м 7']
+  area_m2 numeric(10,2) [null, note: 'CHECK: area_m2 > 0, если заполнено']
+  status record_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (building_id, number) [unique, name: 'uq_property_building_number']
+    (tenant_id, id) [unique, name: 'uq_property_tenant_id']
+  }
+}
+
+Table account {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  property_id uuid [not null]
+  number varchar(32) [not null, note: 'номер лицевого счёта у организации']
+  status account_status [not null, default: 'open']
+  opened_on date [not null]
+  closed_on date [null, note: 'CHECK: closed_on >= opened_on']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id, number) [unique, name: 'uq_account_tenant_number']
+    (tenant_id, id) [unique, name: 'uq_account_tenant_id']
+    (property_id) [name: 'ix_account_property']
+  }
+  Note: 'Лицевой счёт — финансовый регистр помещения. Закрытие только при нулевом балансе и нулевом авансе (INV-08). Начисления, счета и платежи ссылаются на account, не на property.'
+}
+
+Table payer {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  kind payer_kind [not null]
+  display_name varchar(300) [not null]
+  inn varchar(12) [null, note: 'CHECK: 10 или 12 цифр']
+  phone varchar(32) [null]
+  email varchar(320) [null]
+  status record_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id, id) [unique, name: 'uq_payer_tenant_id']
+  }
+  Note: 'Плательщик: физическое или юридическое лицо. PII минимизированы (C-04); история связи с помещениями — в payer_property.'
+}
+
+Table payer_property {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  payer_id uuid [not null]
+  property_id uuid [not null]
+  relation payer_relation [not null]
+  share_bp smallint [null, note: 'CHECK: 0..10000; доля в базисных пунктах']
+  valid_from date [not null]
+  valid_to date [null, note: 'CHECK: valid_to > valid_from; NULL — бессрочно']
+  created_at timestamptz [not null]
+  indexes {
+    (payer_id, property_id, relation, valid_from) [unique, name: 'uq_payer_property_relation_from']
+    (property_id) [name: 'ix_payer_property_property']
+  }
+  Note: 'Связь плательщика с помещением в роли (собственник, наниматель, член семьи). Один плательщик — много помещений; одно помещение — несколько плательщиков.'
+}
+
+// ---------------------------------------------------------------------------
+// tariffs
+// ---------------------------------------------------------------------------
+
+Table service {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  code varchar(32) [not null, note: 'ХВС, ГВС, ЭЭ, СОДЕРЖАНИЕ, ТКО']
+  name varchar(200) [not null]
+  unit varchar(32) [not null, note: 'м3, Гкал, кВт·ч, м2, чел.']
+  status record_status [not null, default: 'active']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id, code) [unique, name: 'uq_service_tenant_code']
+    (tenant_id, id) [unique, name: 'uq_service_tenant_id']
+  }
+}
+
+Table tariff {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  service_id uuid [not null]
+  unit_price numeric(14,4) [not null, note: 'ставка за единицу услуги, НЕ денежная сумма; CHECK: unit_price >= 0']
+  currency char(3) [not null, default: 'RUB']
+  valid_from date [not null]
+  valid_to date [null, note: 'CHECK: valid_to > valid_from; NULL — действует бессрочно']
+  created_at timestamptz [not null]
+  indexes {
+    (service_id, valid_from) [unique, name: 'uq_tariff_service_from']
+    (tenant_id, id) [unique, name: 'uq_tariff_tenant_id']
+  }
+  Note: 'Версионируемый тариф. Пересечение периодов действия для одной услуги запрещено: EXCLUDE USING gist (service_id WITH =, daterange(valid_from, valid_to) WITH &&) (INV-04). Интервал полуоткрытый: valid_from включается, valid_to исключается. Старые версии не переписываются.'
+}
+
+// ---------------------------------------------------------------------------
+// billing
+// ---------------------------------------------------------------------------
+
+Table period_run {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  period varchar(7) [not null, note: 'CHECK: YYYY-MM (INV-02)']
+  status period_run_status [not null, default: 'draft']
+  idempotency_key varchar(128) [not null]
+  accruals_count integer [not null, default: 0]
+  accruals_total_minor bigint [not null, default: 0, note: 'копейки']
+  invoices_issued_count integer [not null, default: 0]
+  started_at timestamptz [null]
+  finished_at timestamptz [null]
+  created_at timestamptz [not null]
+  indexes {
+    (tenant_id, period) [unique, name: 'uq_period_run_tenant_period']
+    (tenant_id, idempotency_key) [unique, name: 'uq_period_run_tenant_idem']
+  }
+  Note: 'Прогон расчётного периода: массовое начисление и прогресс выставления счетов (QS-01). Повторный запуск с тем же ключом возвращает существующий прогон; повторная проводка проведённого периода запрещена (INV-09).'
+}
+
+Table accrual {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  account_id uuid [not null]
+  period varchar(7) [not null, note: 'CHECK: YYYY-MM (INV-02)']
+  service_id uuid [not null]
+  tariff_id uuid [not null, note: 'применённая версия тарифа (INV-04)']
+  kind accrual_kind [not null, default: 'regular']
+  status accrual_status [not null, default: 'draft']
+  amount_minor bigint [not null, note: 'CHECK: amount_minor > 0 (INV-03); копейки']
+  currency char(3) [not null, default: 'RUB']
+  quantity numeric(12,4) [null, note: 'объём/площадь/человек; CHECK: quantity > 0, если заполнено']
+  calc_basis jsonb [null, note: 'основание расчёта: тариф, объём, округление']
+  reversal_of_id uuid [null, unique, note: 'заполнен только для kind=reversal (INV-19)']
+  posted_at timestamptz [null]
+  created_at timestamptz [not null]
+  created_by uuid [null]
+  indexes {
+    (tenant_id, id) [unique, name: 'uq_accrual_tenant_id']
+    (account_id, period) [name: 'ix_accrual_account_period']
+    (tenant_id, period, status) [name: 'ix_accrual_tenant_period_status']
+  }
+  Note: 'Начисление — документ-основание счёта. Проведённое начисление неизменяемо (INV-09): исправление только сторно-записью kind=reversal + reversal_of_id и новым начислением. Сумма сторно-записи положительна, знак задаётся kind.'
+}
+
+// ---------------------------------------------------------------------------
+// invoicing
+// ---------------------------------------------------------------------------
+
+Table invoice {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  account_id uuid [not null]
+  period varchar(7) [not null, note: 'CHECK: YYYY-MM (INV-02)']
+  status invoice_status [not null, default: 'draft']
+  total_minor bigint [not null, note: 'CHECK: total_minor > 0; копейки']
+  paid_minor bigint [not null, default: 0, note: 'CHECK: 0 <= paid_minor <= total_minor (INV-06)']
+  currency char(3) [not null, default: 'RUB']
+  due_on date [not null]
+  issued_at timestamptz [null]
+  closed_at timestamptz [null]
+  voided_at timestamptz [null]
+  void_reason text [null]
+  version integer [not null, default: 1, note: 'оптимистическая блокировка']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id, account_id, period) [unique, name: 'uq_invoice_account_period_active', note: 'частичный: WHERE status <> void (INV-10)']
+    (tenant_id, id) [unique, name: 'uq_invoice_tenant_id']
+    (tenant_id, status, due_on) [name: 'ix_invoice_tenant_status_due']
+  }
+  Note: 'Счёт/квитанция. Не более одного действующего (не void) счёта на пару (account, period) (INV-10); частичный уникальный индекс позволяет перевыставить счёт после аннулирования. Содержимое выставленного счёта неизменяемо (INV-12): правятся только paid_minor/status через ApplySettlement. Аннулирование (void) разрешено только без распределений (INV-11).'
+}
+
+Table invoice_line {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  invoice_id uuid [not null]
+  accrual_id uuid [not null]
+  service_id uuid [not null]
+  description varchar(300) [not null]
+  amount_minor bigint [not null, note: 'CHECK: amount_minor > 0; копейки']
+  created_at timestamptz [not null]
+  indexes {
+    (invoice_id, accrual_id) [unique, name: 'uq_invoice_line_invoice_accrual']
+    (invoice_id) [name: 'ix_invoice_line_invoice']
+  }
+  Note: 'Строка счёта: детализация по услугам и начислениям. Сумма строк равна total_minor счёта (INV-05); после выставления строки не меняются (INV-12).'
+}
+
+// ---------------------------------------------------------------------------
+// payments
+// ---------------------------------------------------------------------------
+
+Table payment {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  account_id uuid [not null]
+  payer_id uuid [null]
+  import_batch_id uuid [null]
+  status payment_status [not null, default: 'received']
+  amount_minor bigint [not null, note: 'CHECK: amount_minor > 0; копейки']
+  allocated_minor bigint [not null, default: 0, note: 'CHECK: 0 <= allocated_minor <= amount_minor (INV-07)']
+  currency char(3) [not null, default: 'RUB']
+  paid_at timestamptz [not null, note: 'момент поступления денег']
+  recorded_at timestamptz [not null, note: 'момент записи в систему']
+  channel payment_channel [not null]
+  external_ref varchar(128) [null, note: 'id операции в банке/эквайринге']
+  idempotency_key varchar(128) [not null]
+  reversed_at timestamptz [null]
+  reversal_reason text [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id, idempotency_key) [unique, name: 'uq_payment_tenant_idem']
+    (tenant_id, channel, external_ref) [unique, name: 'uq_payment_tenant_channel_external']
+    (tenant_id, id) [unique, name: 'uq_payment_tenant_id']
+    (account_id, paid_at) [name: 'ix_payment_account_paid_at']
+  }
+  Note: 'Платёж не привязан к счёту напрямую. Идемпотентность по (tenant_id, idempotency_key) (INV-13); повтор возвращает существующий платёж. Остаток amount_minor - allocated_minor — аванс (credit_balance). Сторно разрешено только до первого распределения (INV-19).'
+}
+
+Table import_batch {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  source import_source [not null]
+  file_name varchar(300) [not null]
+  batch_key varchar(128) [not null, note: 'хеш файла/выгрузки для дедупликации']
+  status import_batch_status [not null, default: 'received']
+  rows_total integer [not null, default: 0]
+  rows_matched integer [not null, default: 0]
+  rows_unmatched integer [not null, default: 0]
+  started_at timestamptz [null]
+  finished_at timestamptz [null]
+  created_at timestamptz [not null]
+  indexes {
+    (tenant_id, batch_key) [unique, name: 'uq_import_batch_tenant_key']
+    (tenant_id, id) [unique, name: 'uq_import_batch_tenant_id']
+  }
+  Note: 'Импорт банковской выписки или выгрузки эквайринга (QS-03). Повторный импорт с тем же batch_key не создаёт новых платежей.'
+}
+
+Table reconciliation_item {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  import_batch_id uuid [not null]
+  row_no integer [not null, note: 'CHECK: row_no > 0']
+  external_ref varchar(128) [null]
+  amount_minor bigint [not null, note: 'CHECK: amount_minor > 0; копейки']
+  currency char(3) [not null, default: 'RUB']
+  paid_at timestamptz [not null]
+  payer_hint varchar(300) [null, note: 'назначение платежа из выписки, минимизировано']
+  status reconciliation_status [not null, default: 'pending']
+  matched_payment_id uuid [null]
+  discrepancy_kind varchar(64) [null, note: 'AMOUNT_MISMATCH | UNKNOWN_PAYER | DUPLICATE | OTHER']
+  created_at timestamptz [not null]
+  resolved_at timestamptz [null]
+  indexes {
+    (import_batch_id, row_no) [unique, name: 'uq_reconciliation_item_batch_row']
+    (import_batch_id, external_ref) [unique, name: 'uq_reconciliation_item_batch_ref']
+    (matched_payment_id) [name: 'ix_reconciliation_item_payment']
+  }
+  Note: 'Строка сверки: сопоставление записи внешнего источника с платежом. Расхождение фиксируется явно (status=discrepancy), а не замалчивается.'
+}
+
+// ---------------------------------------------------------------------------
+// ledger
+// ---------------------------------------------------------------------------
+
+Table allocation {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  payment_id uuid [not null]
+  invoice_id uuid [not null]
+  amount_minor bigint [not null, note: 'CHECK: amount_minor > 0 (INV-17); копейки']
+  currency char(3) [not null, default: 'RUB']
+  created_by uuid [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (payment_id, invoice_id) [unique, name: 'uq_allocation_payment_invoice']
+    (invoice_id) [name: 'ix_allocation_invoice']
+  }
+  Note: 'Распределение платежа на счёт. Одна регистровая запись на пару (payment, invoice) (INV-14/15): повторное распределение увеличивает amount_minor под блокировкой платежа и счёта и фиксируется audit_event, а не создаёт дубль. Уменьшение распределения в MVP не поддерживается; ошибка распределения исправляется только до проведения.'
+}
+
+Table account_balance {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  account_id uuid [not null, unique, note: 'один баланс на лицевой счёт']
+  accrual_total_minor bigint [not null, default: 0, note: 'сумма проведённых начислений минус сторно']
+  allocated_total_minor bigint [not null, default: 0]
+  credit_balance_minor bigint [not null, default: 0, note: 'аванс: получено минус распределено']
+  balance_minor bigint [not null, default: 0, note: 'CHECK: balance_minor = accrual_total_minor - allocated_total_minor (INV-20)']
+  version integer [not null, default: 1, note: 'оптимистическая блокировка']
+  updated_at timestamptz [not null]
+  indexes {
+    (tenant_id) [name: 'ix_account_balance_tenant']
+  }
+  Note: 'Агрегат баланса лицевого счёта, пересчитываемый в транзакции начисления/распределения (INV-20). Не является первичным источником: восстанавливается из accrual/allocation/payment. Закрытие счёта требует balance_minor = 0 и credit_balance_minor = 0 (INV-08).'
+}
+
+// ---------------------------------------------------------------------------
+// сквозные таблицы
+// ---------------------------------------------------------------------------
+
+Table audit_event {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  occurred_at timestamptz [not null]
+  actor_kind actor_kind [not null]
+  actor_user_id uuid [null, note: 'заполнен при actor_kind=user']
+  action varchar(64) [not null, note: 'CREATE | POST | ISSUE | ALLOCATE | VOID | REVERSE | CLOSE']
+  entity_type varchar(64) [not null, note: 'accrual | invoice | payment | allocation | account | tariff']
+  entity_id uuid [not null]
+  reason text [null]
+  before jsonb [null]
+  after jsonb [null]
+  correlation_id uuid [null]
+  trace_id varchar(64) [null]
+  indexes {
+    (tenant_id, entity_type, entity_id, occurred_at) [name: 'ix_audit_entity']
+    (tenant_id, occurred_at) [name: 'ix_audit_tenant_time']
+  }
+  Note: 'Неизменяемая аудит-запись: кто, когда, что и почему изменил (FR-13, INV-18). Append-only: UPDATE/DELETE запрещены правами и триггером. entity_id полиморфный, FK не ставится.'
+}
+
+Table outbox_event {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  event_type varchar(64) [not null, note: 'AccrualPosted | InvoiceIssued | PaymentRegistered | PaymentAllocated | ...']
+  event_version integer [not null, default: 1]
+  payload jsonb [not null]
+  occurred_at timestamptz [not null]
+  available_at timestamptz [not null]
+  processed_at timestamptz [null]
+  attempts integer [not null, default: 0]
+  last_error text [null]
+  causation_id uuid [null]
+  correlation_id uuid [null]
+  indexes {
+    (processed_at, available_at) [name: 'ix_outbox_dispatch']
+    (tenant_id, occurred_at) [name: 'ix_outbox_tenant_time']
+  }
+  Note: 'Исходящее событие пишется в одной транзакции с бизнес-изменением (ADR-0005); доставка — отдельным воркером. Повторная доставка допустима, потребители идемпотентны.'
+}
+
+Table notification {
+  id uuid [pk, note: 'UUIDv7']
+  tenant_id uuid [not null]
+  recipient_user_id uuid [not null]
+  account_id uuid [null]
+  channel notification_channel [not null]
+  template_code varchar(64) [not null, note: 'invoice_issued | payment_received']
+  payload jsonb [not null]
+  status notification_status [not null, default: 'pending']
+  created_at timestamptz [not null]
+  sent_at timestamptz [null]
+  read_at timestamptz [null]
+  indexes {
+    (recipient_user_id, status, created_at) [name: 'ix_notification_recipient']
+  }
+  Note: 'Уведомление жителю о выставлении счёта или поступлении платежа (FR-11). Не влияет на финансовую транзакцию; PII в payload минимальны (C-04).'
+}
+
+// ---------------------------------------------------------------------------
+// Связи: tenant
+// ---------------------------------------------------------------------------
+
+Ref: tenant.id < membership.tenant_id
+Ref: tenant.id < building.tenant_id
+Ref: tenant.id < property.tenant_id
+Ref: tenant.id < account.tenant_id
+Ref: tenant.id < payer.tenant_id
+Ref: tenant.id < payer_property.tenant_id
+Ref: tenant.id < service.tenant_id
+Ref: tenant.id < tariff.tenant_id
+Ref: tenant.id < period_run.tenant_id
+Ref: tenant.id < accrual.tenant_id
+Ref: tenant.id < invoice.tenant_id
+Ref: tenant.id < invoice_line.tenant_id
+Ref: tenant.id < payment.tenant_id
+Ref: tenant.id < import_batch.tenant_id
+Ref: tenant.id < reconciliation_item.tenant_id
+Ref: tenant.id < allocation.tenant_id
+Ref: tenant.id < account_balance.tenant_id
+Ref: tenant.id < audit_event.tenant_id
+Ref: tenant.id < outbox_event.tenant_id
+Ref: tenant.id < notification.tenant_id
+
+// ---------------------------------------------------------------------------
+// Связи: identity
+// ---------------------------------------------------------------------------
+
+Ref: app_user.id < membership.app_user_id
+Ref: role.id < membership.role_id
+Ref: app_user.id < audit_event.actor_user_id
+Ref: app_user.id < notification.recipient_user_id
+
+// ---------------------------------------------------------------------------
+// Связи: registry и tariffs (составные FK удерживают tenant_id)
+// ---------------------------------------------------------------------------
+
+Ref: building.(tenant_id, id) < property.(tenant_id, building_id)
+Ref: property.(tenant_id, id) < account.(tenant_id, property_id)
+Ref: property.(tenant_id, id) < payer_property.(tenant_id, property_id)
+Ref: payer.(tenant_id, id) < payer_property.(tenant_id, payer_id)
+Ref: service.(tenant_id, id) < tariff.(tenant_id, service_id)
+Ref: service.(tenant_id, id) < accrual.(tenant_id, service_id)
+Ref: service.(tenant_id, id) < invoice_line.(tenant_id, service_id)
+Ref: tariff.(tenant_id, id) < accrual.(tenant_id, tariff_id)
+
+// ---------------------------------------------------------------------------
+// Связи: billing, invoicing, payments, ledger
+// ---------------------------------------------------------------------------
+
+Ref: account.(tenant_id, id) < accrual.(tenant_id, account_id)
+Ref: account.(tenant_id, id) < invoice.(tenant_id, account_id)
+Ref: account.(tenant_id, id) < payment.(tenant_id, account_id)
+Ref: account.(tenant_id, id) < account_balance.(tenant_id, account_id)
+Ref: account.(tenant_id, id) < notification.(tenant_id, account_id)
+Ref: accrual.id < accrual.reversal_of_id
+Ref: invoice.(tenant_id, id) < invoice_line.(tenant_id, invoice_id)
+Ref: accrual.(tenant_id, id) < invoice_line.(tenant_id, accrual_id)
+Ref: payer.(tenant_id, id) < payment.(tenant_id, payer_id)
+Ref: import_batch.(tenant_id, id) < payment.(tenant_id, import_batch_id)
+Ref: import_batch.(tenant_id, id) < reconciliation_item.(tenant_id, import_batch_id)
+Ref: payment.(tenant_id, id) < reconciliation_item.(tenant_id, matched_payment_id)
+Ref: payment.(tenant_id, id) < allocation.(tenant_id, payment_id)
+Ref: invoice.(tenant_id, id) < allocation.(tenant_id, invoice_id)

@@ -1,0 +1,38 @@
+%% C4 Level 2 — контейнеры «house-payments».
+%% Стандартный Mermaid flowchart: C4-плагин в пайплайне рендера недоступен.
+%% Источник истины: ./core-modules.md (§1, §3, §7, §10), ADR-0001, ADR-0006, ADR-0008, ADR-0010.
+flowchart LR
+    user["Пользователь"]
+
+    subgraph app["Настольное приложение Electron — один установленный пакет"]
+        renderer["Renderer — React + TypeScript<br/>экраны, формы, графики; без доступа к БД"]
+        preload["Preload bridge<br/>window.api, Zod-контракты, без Node.js в UI"]
+        ipc["IPC-контроллеры<br/>валидация входа, маппинг ошибок"]
+        main["Main process — ядро<br/>14 модулей, use cases, домен, транзакции"]
+        worker["OCR-воркер (worker_threads)<br/>Tesseract.js, pdf.js, sharp<br/>без доступа к сети"]
+        sqlite[("Файл данных SQLite<br/>таблицы, вложения (BLOB), WAL;<br/>без шифрования в первой версии")]
+        updater["Обновления<br/>electron-updater + подпись"]
+    end
+
+    backup[("Резервные копии<br/>внешний диск или папка")]
+    cloud["Облако — будущая зона (ADR-0011)"]
+
+    user -->|"ввод и просмотр"| renderer
+    renderer -->|"вызовы IPC"| preload
+    preload -->|"типизированные команды"| ipc
+    ipc -->|"use case"| main
+    main -->|"SQL: транзакции, индексы, вложения"| sqlite
+    main -->|"запуск распознавания"| worker
+    worker -->|"кандидаты полей и уверенность"| main
+    main -->|"бэкап и восстановление"| backup
+    updater -.->|"новая версия"| main
+    main -.->|"журнал изменений"| cloud
+
+    classDef container fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef store fill:#2e7d32,stroke:#1b5e20,color:#ffffff
+    classDef external fill:#eeeeee,stroke:#888888,color:#222222
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    class renderer,preload,ipc,main,updater,worker container
+    class sqlite,backup store
+    class cloud external
+    class user person

@@ -1,0 +1,61 @@
+// Проверочный пример, НЕ каноническая модель.
+// Цель: убедиться, что DBML -> ERD (SVG) рендерится и годен как артефакт.
+
+Table property {
+  id integer [pk]
+  kind property_kind [note: 'квартира / дом / машиноместо']
+  building_id integer
+  label varchar [note: 'кв. 42, пом. 12-А']
+  area_m2 numeric
+}
+
+Table account {
+  id integer [pk]
+  property_id integer
+  number varchar [unique, note: 'лицевой счёт']
+  opened_on date
+  closed_on date [null]
+}
+
+Table accrual {
+  id integer [pk]
+  account_id integer
+  period varchar [note: 'YYYY-MM']
+  service_code varchar [note: 'ХВС, ГВС, ЭЭ, содержание']
+  amount_minor bigint [note: 'копейки, целое']
+  calc_basis jsonb [null]
+  created_at timestamptz
+}
+
+Table invoice {
+  id integer [pk]
+  account_id integer
+  period varchar
+  total_minor bigint
+  due_on date
+  status varchar
+}
+
+Table payment {
+  id integer [pk]
+  account_id integer
+  paid_at timestamptz
+  amount_minor bigint
+  external_ref varchar [null, note: 'id в банке / кассе']
+  idempotency_key varchar [unique]
+}
+
+Table allocation {
+  id integer [pk]
+  payment_id integer
+  invoice_id integer
+  amount_minor bigint
+  created_at timestamptz
+}
+
+Ref: property.id < account.property_id
+Ref: account.id < accrual.account_id
+Ref: account.id < invoice.account_id
+Ref: account.id < payment.account_id
+Ref: payment.id < allocation.payment_id
+Ref: invoice.id < allocation.invoice_id

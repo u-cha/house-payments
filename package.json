@@ -1,0 +1,17 @@
+{
+  "name": "house-payments-design",
+  "private": true,
+  "description": "Design artifacts tooling (diagrams) for house-payments",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "validate": "node scripts/validate-docs.mjs",
+    "check": "pnpm validate && pnpm test",
+    "diagrams": "bash scripts/render-diagrams.sh",
+    "diagrams:examples": "bash scripts/render-diagrams.sh --with-examples"
+  },
+  "devDependencies": {
+    "@dbml/cli": "^11.0.1",
+    "@mermaid-js/mermaid-cli": "^11.17.1",
+    "@softwaretechnik/dbml-renderer": "^1.0.31"
+  }
+}

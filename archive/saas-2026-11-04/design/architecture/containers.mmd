@@ -1,0 +1,50 @@
+%% C4 Level 2 — контейнеры «house-payments».
+%% Стандартный Mermaid flowchart: C4-плагин в пайплайне рендера недоступен.
+%% Один деплой API и воркера допустим; граница контейнера — процесс, а не сервер.
+%% Источник истины: ./core-modules.md (§1, §7, §10), ADR-0001, ADR-0005, ADR-0006.
+flowchart LR
+    accountant["Бухгалтер"]
+    cashier["Кассир"]
+    resident["Собственник"]
+    admin["Администратор УК"]
+
+    subgraph system["Система «house-payments»"]
+        web["Веб-клиент — SPA<br/>роли, экраны, только UI-валидация"]
+        api["API — модульный монолит<br/>identity, registry, tariffs, billing,<br/>invoicing, payments, ledger, reporting"]
+        worker["Воркер<br/>outbox relay, планировщик начислений,<br/>импорт выписок"]
+        pg[("PostgreSQL<br/>схемы модулей, outbox_event, RLS")]
+        files[("Хранилище файлов выписок<br/>исходные файлы и результаты импорта")]
+    end
+
+    subgraph ext["Внешние системы"]
+        bank["Банк"]
+        acquiring["Эквайринг"]
+        notify["Email/SMS-провайдер"]
+        onec["1С"]
+    end
+
+    admin -->|"HTTPS"| web
+    accountant -->|"HTTPS"| web
+    cashier -->|"HTTPS"| web
+    resident -->|"HTTPS"| web
+
+    web -->|"HTTPS: REST/JSON, JWT-сессия"| api
+
+    api -->|"SQL через пул соединений<br/>tenant_id из контекста запроса"| pg
+    worker -->|"SQL: выборка outbox_event,<br/>пакетный импорт, начисления по расписанию"| pg
+    api -->|"сохранение исходного файла<br/>и отчёта об импорте"| files
+    worker -->|"чтение исходного файла"| files
+
+    api -->|"запрос выписки; приём файла или API"| bank
+    acquiring -->|"HTTPS-вебхук о платеже"| api
+    worker -->|"HTTPS: Email/SMS"| notify
+    api -->|"экспорт проводок в 1С"| onec
+
+    classDef external fill:#eeeeee,stroke:#888888,color:#222222
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef container fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef store fill:#2e7d32,stroke:#1b5e20,color:#ffffff
+    class bank,acquiring,notify,onec external
+    class admin,accountant,cashier,resident person
+    class web,api,worker container
+    class pg,files store

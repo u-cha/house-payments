@@ -1,0 +1,63 @@
+%% C4 Level 3 — компоненты ядра «house-payments».
+%% Стандартный Mermaid flowchart: C4-плагин в пайплайне рендера недоступен.
+%% Показаны укрупнённые группы и только ключевые зависимости; полные правила —
+%% в ./core-modules.md §1–§2.
+flowchart TB
+    renderer["renderer — React UI<br/>без бизнес-правил и доступа к БД"]
+
+    subgraph core["Ядро main-процесса — локальный модульный монолит"]
+        ipc["ipc — адаптеры<br/>Zod-валидация, маппинг ошибок"]
+
+        subgraph fin["Финансовый контур"]
+            billing["billing<br/>начисления за период, импорт"]
+            invoicing["invoicing<br/>квитанции, строки, фиксация"]
+            payments["payments<br/>платежи, идемпотентность"]
+            ledger["ledger<br/>распределение, долг, переплата, баланс"]
+        end
+
+        subgraph supp["Справочники и поддержка"]
+            identity["identity<br/>профили, роли, вход"]
+            catalog["catalog<br/>помещения, поставщики,<br/>лицевые счета, услуги, тарифы"]
+            metering["metering<br/>счётчики, показания,<br/>поверка, передача"]
+            reminders["reminders<br/>оплата, показания, поверка"]
+            documents["documents<br/>сканы и фото"]
+            recognition["recognition<br/>OCR, шаблоны поставщиков,<br/>кандидаты и подтверждение"]
+            reporting["reporting<br/>отчёты и графики"]
+            portability["portability<br/>экспорт, бэкап, миграции"]
+            sync["sync<br/>журнал и будущая синхронизация"]
+        end
+
+        shared["shared<br/>Money, Period, ids, errors,<br/>clock, порт change_log<br/>(без зависимостей от SQLite)"]
+    end
+
+    sqlite[("SQLite — один файл данных<br/>таблицы модулей, вложения (BLOB),<br/>audit_event, change_log")]
+
+    renderer -->|"IPC"| ipc
+    ipc -->|"use cases"| fin
+    ipc -->|"use cases"| supp
+
+    ledger -->|"ApplySettlement"| invoicing
+    ledger -->|"CreatePayment"| payments
+    invoicing -->|"основание — начисления"| billing
+    billing -->|"показания счётчиков"| metering
+    reminders -->|"сроки оплаты"| invoicing
+    reminders -->|"сроки показаний и поверки"| metering
+    recognition -->|"вложения и файлы"| documents
+    recognition -->|"подтверждённые данные"| billing
+    recognition -->|"поставщик и лицевой счёт"| catalog
+    fin -->|"справочники"| catalog
+    portability -->|"чтение через api.ts"| fin
+
+    fin -->|"публичные контракты"| shared
+    supp -->|"публичные контракты"| shared
+    fin -.->|"репозитории, транзакции"| sqlite
+    supp -.->|"репозитории"| sqlite
+
+    classDef module fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef kernel fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef store fill:#2e7d32,stroke:#1b5e20,color:#ffffff
+    classDef ui fill:#6a1b9a,stroke:#4a148c,color:#ffffff
+    class identity,catalog,metering,billing,invoicing,payments,ledger,reminders,documents,recognition,reporting,portability,sync,ipc module
+    class shared kernel
+    class sqlite store
+    class renderer ui

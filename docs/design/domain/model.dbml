@@ -1,0 +1,435 @@
+// Модель данных house-payments для SQLite.
+// Деньги: INTEGER в минорных единицах (копейки), без плавающей точки (C-02).
+// Период: varchar(7) в формате YYYY-MM (C-03). Время: TEXT в ISO-8601 UTC.
+// Идентификаторы: TEXT, UUIDv7. Схема — источник ERD и SQL, правится только здесь.
+
+Project house_payments {
+  database_type: "SQLite"
+  Note: 'Локальный файл данных пользователя. Одна установка — несколько профилей членов семьи.'
+}
+
+Table profile {
+  id text [pk]
+  name text [not null]
+  role text [not null]
+  password_hash text [not null]
+  is_active boolean [not null, default: true]
+  created_at text [not null]
+  updated_at text [not null]
+
+  indexes {
+    (name) [unique]
+  }
+
+  Note: 'Профиль члена семьи; роль owner или member; пароль только как хеш Argon2id.'
+}
+
+Table device {
+  id text [pk]
+  name text [not null]
+  created_at text [not null]
+  last_seen_at text
+
+  Note: 'Устройство, на котором открывался файл; нужно для будущей синхронизации (ADR-0011).'
+}
+
+Table setting {
+  key text [pk]
+  value text [not null]
+  updated_at text [not null]
+
+  Note: 'Пользовательские настройки: тема, напоминания, шифрование, единицы.'
+}
+
+Table property {
+  id text [pk]
+  kind text [not null]
+  label text [not null]
+  address text [not null]
+  area_m2 numeric(10,2)
+  share_bp integer [not null, default: 10000]
+  note text
+  created_at text [not null]
+
+  Note: 'Помещение: квартира, дом или машиноместо; share_bp — доля в базисных пунктах.'
+}
+
+Table supplier {
+  id text [pk]
+  name text [not null]
+  kind text [not null]
+  contacts text
+  note text
+  created_at text [not null]
+
+  Note: 'Поставщик услуг: управляющая компания, ТСЖ, ресурсоснабжающая организация.'
+}
+
+Table account {
+  id text [pk]
+  property_id text [not null]
+  supplier_id text [not null]
+  number text [not null]
+  label text
+  cabinet_url text
+  cabinet_note text
+  opened_on text
+  closed_on text
+  is_active boolean [not null, default: true]
+  created_at text [not null]
+
+  indexes {
+    (property_id, supplier_id, number) [unique]
+  }
+
+  Note: 'Лицевой счёт у поставщика для помещения; cabinet_url/cabinet_note — ссылка на личный кабинет и памятка по передаче показаний (FR-19).'
+}
+
+Table service {
+  id text [pk]
+  supplier_id text
+  name text [not null]
+  unit text [not null]
+  category text
+  created_at text [not null]
+}
+
+Table tariff {
+  id text [pk]
+  service_id text [not null]
+  price_minor integer [not null]
+  unit text [not null]
+  valid_from text [not null]
+  valid_to text
+  note text
+  created_at text [not null]
+
+  indexes {
+    (service_id, valid_from) [unique]
+  }
+
+  Note: 'Тариф версионируется: старый не перезаписывается, а закрывается датой valid_to.'
+}
+
+Table meter {
+  id text [pk]
+  account_id text [not null]
+  service_id text [not null]
+  serial text [not null]
+  kind text
+  installed_on text
+  verified_on text
+  valid_until text
+  retired_on text
+  replaced_meter_id text
+  unit text [not null]
+  note text
+  created_at text [not null]
+
+  Note: 'Счётчик; valid_until — текущая дата окончания поверки (зеркало последней записи meter_verification); retired_on — вывод из эксплуатации; replaced_meter_id — счётчик, который заменён этим.'
+}
+
+Table meter_verification {
+  id text [pk]
+  meter_id text [not null]
+  verified_on text [not null]
+  valid_until text [not null]
+  certificate text
+  note text
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (meter_id, verified_on)
+  }
+
+  Note: 'История поверок счётчика; последняя запись задаёт meter.verified_on/valid_until.'
+}
+
+Table meter_reading {
+  id text [pk]
+  meter_id text [not null]
+  period varchar(7) [not null]
+  value numeric(14,3) [not null]
+  taken_on text [not null]
+  submitted_on text
+  submission_marked_at text
+  submission_channel text
+  note text
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (meter_id, period) [unique]
+  }
+
+  Note: 'Показание за период и отметка о передаче поставщику.'
+}
+
+Table accrual {
+  id text [pk]
+  account_id text [not null]
+  service_id text [not null]
+  period varchar(7) [not null]
+  amount_minor integer [not null]
+  source text [not null]
+  external_ref text
+  reversal_of text
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (account_id, service_id, period) [unique]
+    (reversal_of) [unique]
+  }
+
+  Note: 'Начисление за период; source = manual|template|import|recognition. UNIQUE (account_id, service_id, period) действует только для несторнированных строк (partial index WHERE reversal_of IS NULL); reversal_of уникален и ссылается на исходное начисление.'
+}
+
+Table invoice {
+  id text [pk]
+  account_id text [not null]
+  period varchar(7) [not null]
+  total_minor integer [not null]
+  due_on text
+  status text [not null]
+  issued_at text
+  voided_at text
+  note text
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (account_id, period) [unique]
+  }
+
+  Note: 'Квитанция за период; после фиксации не редактируется (INV-05). UNIQUE (account_id, period) действует только для не-void строк (partial index WHERE status <> "void"); перевыпуск после аннулирования разрешён (ADR-0007).'
+}
+
+Table invoice_line {
+  id text [pk]
+  invoice_id text [not null]
+  accrual_id text
+  service_id text [not null]
+  amount_minor integer [not null]
+  basis text
+  created_at text [not null]
+
+  Note: 'Строка квитанции по услуге; accrual_id — основание строки (nullable для ручных строк).'
+}
+
+Table payment {
+  id text [pk]
+  account_id text [not null]
+  amount_minor integer [not null]
+  paid_on text [not null]
+  channel text [not null]
+  reference text
+  idempotency_key text [not null]
+  reversed_at text
+  reversal_reason text
+  note text
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (idempotency_key) [unique]
+  }
+
+  Note: 'Платёж; повтор по тому же idempotency_key возвращает существующую запись (INV-13).'
+}
+
+Table allocation {
+  id text [pk]
+  payment_id text [not null]
+  invoice_id text [not null]
+  amount_minor integer [not null]
+  reversed_at text
+  reversal_reason text
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (payment_id, invoice_id) [unique]
+  }
+
+  Note: 'Отнесение суммы платежа на квитанцию; отмена распределения — reversed_at + причина, деньги возвращаются в аванс (INV-06). UNIQUE (payment_id, invoice_id) действует только для активных строк (partial index WHERE reversed_at IS NULL), поэтому после отмены можно разнести заново.'
+}
+
+Table balance {
+  account_id text [pk]
+  accrued_minor integer [not null, default: 0]
+  paid_minor integer [not null, default: 0]
+  debt_minor integer [not null, default: 0]
+  advance_minor integer [not null, default: 0]
+  updated_at text [not null]
+
+  Note: 'Остаток лицевого счёта; обновляется в той же транзакции, что и операция.'
+}
+
+Table reminder {
+  id text [pk]
+  kind text [not null]
+  title text [not null]
+  due_on text [not null]
+  target_type text
+  target_id text
+  status text [not null]
+  note text
+  created_at text [not null]
+  updated_at text [not null]
+
+  Note: 'Напоминание: оплата, передача показаний, поверка.'
+}
+
+Table attachment {
+  id text [pk]
+  entity_type text [not null]
+  entity_id text [not null]
+  file_name text [not null]
+  mime text [not null]
+  size_bytes integer [not null]
+  sha256 text [not null]
+  content blob [not null]
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (entity_type, entity_id)
+    (sha256)
+  }
+
+  Note: 'Содержимое вложения хранится в файле данных (BLOB); sha256 используется для проверки целостности. Дедупликация не выполняется: одно фото — одно вложение.'
+}
+
+Table import_job {
+  id text [pk]
+  kind text [not null]
+  attachment_id text
+  batch_key text
+  status text [not null]
+  page_count integer
+  created_by text [not null]
+  created_at text [not null]
+  completed_at text
+  error_code text
+
+  indexes {
+    (batch_key) [unique]
+  }
+
+  Note: 'Задание импорта квитанции: скан/фото или CSV; batch_key — хеш файла и параметров для идемпотентного повторного импорта (ADR-0004); статусы uploaded…confirmed.'
+}
+
+Table recognition_candidate {
+  id text [pk]
+  import_job_id text [not null]
+  page integer [not null, default: 1]
+  line_no integer [not null, default: 1]
+  field text [not null]
+  value text [not null]
+  service_id text
+  amount_minor integer
+  confidence_bp integer [not null]
+  bbox text
+  accepted boolean [not null, default: false]
+  corrected boolean [not null, default: false]
+  created_at text [not null]
+
+  indexes {
+    (import_job_id, page, line_no)
+  }
+
+  Note: 'Распознанное поле с уверенностью; line_no группирует строки услуг одной квитанции; service_id/amount_minor задают услугу и сумму; финансовый документ создаётся только после подтверждения (INV-21).'
+}
+
+Table supplier_template {
+  id text [pk]
+  supplier_id text [not null]
+  sample_attachment_id text
+  name text [not null]
+  regions_json text [not null]
+  rules_json text [not null]
+  version integer [not null, default: 1]
+  created_by text [not null]
+  created_at text [not null]
+
+  indexes {
+    (supplier_id, name, version) [unique]
+  }
+
+  Note: 'Шаблон разбора квитанции поставщика: regions_json — области полей и таблицы услуг в долях страницы, rules_json — правила разбора значений; sample_attachment_id — образец; версионируются, не перезаписываются (INV-23); создаёт пользователь в модуле настройки.'
+}
+
+Table audit_event {
+  id text [pk]
+  profile_id text [not null]
+  occurred_at text [not null]
+  action text [not null]
+  entity_type text [not null]
+  entity_id text [not null]
+  reason text
+  correlation_id text
+  details_json text
+
+  Note: 'Неизменяемая запись аудита; append-only, без UPDATE и DELETE (INV-17).'
+}
+
+Table change_log {
+  id text [pk]
+  entity_type text [not null]
+  entity_id text [not null]
+  operation text [not null]
+  payload_json text [not null]
+  device_id text [not null]
+  logical_clock integer [not null]
+  occurred_at text [not null]
+  synced_at text
+
+  indexes {
+    (entity_type, entity_id, logical_clock) [unique]
+    (synced_at)
+  }
+
+  Note: 'Журнал изменений для будущей синхронизации; append-only (INV-18).'
+}
+
+Table schema_version {
+  version integer [pk]
+  applied_at text [not null]
+  note text
+
+  Note: 'Применённые миграции; только вперёд, откат — из резервной копии (INV-20).'
+}
+
+Ref: account.property_id > property.id
+Ref: account.supplier_id > supplier.id
+Ref: service.supplier_id > supplier.id
+Ref: tariff.service_id > service.id
+Ref: meter.account_id > account.id
+Ref: meter.service_id > service.id
+Ref: meter.replaced_meter_id > meter.id
+Ref: meter_verification.meter_id > meter.id
+Ref: meter_verification.created_by > profile.id
+Ref: meter_reading.meter_id > meter.id
+Ref: accrual.account_id > account.id
+Ref: accrual.service_id > service.id
+Ref: accrual.reversal_of > accrual.id
+Ref: invoice.account_id > account.id
+Ref: invoice_line.invoice_id > invoice.id
+Ref: invoice_line.accrual_id > accrual.id
+Ref: invoice_line.service_id > service.id
+Ref: payment.account_id > account.id
+Ref: allocation.payment_id > payment.id
+Ref: allocation.invoice_id > invoice.id
+Ref: balance.account_id > account.id
+Ref: import_job.attachment_id > attachment.id
+Ref: recognition_candidate.import_job_id > import_job.id
+Ref: recognition_candidate.service_id > service.id
+Ref: supplier_template.supplier_id > supplier.id
+Ref: supplier_template.sample_attachment_id > attachment.id
+Ref: audit_event.profile_id > profile.id
+Ref: accrual.created_by > profile.id
+Ref: payment.created_by > profile.id
+Ref: meter_reading.created_by > profile.id
+Ref: change_log.device_id > device.id

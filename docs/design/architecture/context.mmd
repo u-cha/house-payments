@@ -1,0 +1,30 @@
+%% C4 Level 1 — системный контекст «house-payments» (личный учёт, локальное приложение).
+%% Стандартный Mermaid flowchart: C4-плагин в пайплайне рендера недоступен.
+%% Источник истины: ../brief.md (§1–§3), ./core-modules.md (§1).
+flowchart LR
+    owner["Собственник — роль owner"]
+    member["Член семьи — роль member (после первой версии)"]
+
+    subgraph boundary["Приложение «house-payments» — локальное, работает офлайн"]
+        hp["Учёт помещений, начислений, квитанций, платежей,<br/>счётчиков, напоминаний и отчётов.<br/>Данные — в файле на устройстве пользователя."]
+    end
+
+    suppliers["Поставщики услуг: УК, ТСЖ, РСО"]
+    bankapp["Банк или личный кабинет поставщика"]
+    scans["Сканы и фото квитанций, чеков, актов"]
+    cloud["Облако синхронизации — будущая зона (ADR-0011)"]
+
+    owner -->|"настройка, ввод, отчёты, резервные копии"| hp
+    member -.->|"после первой версии: показания, платежи, просмотр"| hp
+    owner -->|"оплата выполняется вне приложения"| bankapp
+    suppliers -.->|"квитанции и начисления: ввод вручную или импорт CSV"| hp
+    owner -->|"файлы вложений"| scans
+    scans -.->|"прикрепляются к документам"| hp
+    hp -.->|"только после включения синхронизации"| cloud
+
+    classDef external fill:#eeeeee,stroke:#888888,color:#222222
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
+    class suppliers,bankapp,scans,cloud external
+    class owner,member person
+    class hp system

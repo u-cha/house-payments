@@ -1,0 +1,20 @@
+%% Жизненный цикл квитанции (invoice).
+%% Источник: ../model.dbml, ../invariants.md (INV-03, INV-05, INV-06).
+stateDiagram-v2
+    [*] --> Draft: создать на период
+    Draft --> Issued: IssueInvoice (dueOn, issued_at)
+    Draft --> Void: VoidInvoice
+    Issued --> PartiallyPaid: первое активное распределение
+    Issued --> Paid: полная оплата
+    Issued --> Void: VoidInvoice (без активных распределений)
+    PartiallyPaid --> Paid: остаток оплачен
+    PartiallyPaid --> Void: после отмены распределений
+    Paid --> [*]
+    Void --> [*]
+
+    note right of Issued
+        Содержимое и строки неизменяемы (INV-05); total_minor не меняется
+        при оплате — меняется только статус (и отображается дата/комментарий).
+        Исправление — сторно начислений и новая квитанция; после аннулирования
+        квитанцию за тот же период можно выпустить заново (INV-03).
+    end note

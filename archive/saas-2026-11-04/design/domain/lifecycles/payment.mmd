@@ -1,0 +1,25 @@
+stateDiagram-v2
+    direction LR
+
+    state "Получен" as Received
+    state "Частично распределён" as PartiallyAllocated
+    state "Распределён" as Allocated
+    state "Сторнирован" as Reversed
+
+    [*] --> Received: RegisterPayment или ImportStatement
+    Received --> PartiallyAllocated: распределено больше нуля и меньше суммы
+    Received --> Allocated: распределено ровно на сумму
+    PartiallyAllocated --> Allocated: остаток распределён полностью
+    Received --> Reversed: сторно до первого распределения (INV-19)
+    Allocated --> [*]
+    Reversed --> [*]
+
+    note right of PartiallyAllocated
+        Неразнесённый остаток — аванс лицевого счёта.
+        Сумма распределений не превышает сумму платежа (INV-07).
+    end note
+
+    note right of Allocated
+        Сторно запрещено: есть распределения (INV-19).
+        Уменьшение распределений в MVP не поддерживается.
+    end note

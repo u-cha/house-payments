@@ -1,0 +1,36 @@
+stateDiagram-v2
+    direction LR
+
+    state "Черновик" as Draft
+    state "Выставлен" as Issued
+    state "Частично оплачен" as PartiallyPaid
+    state "Оплачен" as Paid
+    state "Просрочен" as Overdue
+    state "Закрыт" as Closed
+    state "Аннулирован (сторно)" as Void
+
+    [*] --> Draft: сформирован по начислениям периода
+    Draft --> Issued: выставить — фиксируются строки, сумма и срок оплаты
+    Draft --> Void: аннулировать до выставления
+    Issued --> PartiallyPaid: распределение больше нуля и меньше суммы
+    Issued --> Paid: распределения покрывают сумму
+    Issued --> Overdue: срок оплаты прошёл, оплаты нет
+    PartiallyPaid --> Paid: остаток погашен
+    PartiallyPaid --> Overdue: срок оплаты прошёл, остаток больше нуля
+    Overdue --> Paid: остаток погашен
+    Overdue --> PartiallyPaid: частичная оплата после срока
+    Paid --> Closed: период закрыт
+    Issued --> Void: сторно — только если нет распределений (INV-11)
+    Closed --> [*]
+    Void --> [*]
+
+    note right of Issued
+        Выставленный счёт неизменяем (INV-12).
+        Меняются только paid_minor и состояние,
+        и только через ApplySettlement.
+    end note
+
+    note right of Void
+        Аннулированный счёт не удаляется.
+        Двойное аннулирование запрещено (INV-19).
+    end note

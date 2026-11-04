@@ -1,0 +1,18 @@
+%% Жизненный цикл счётчика (meter): поверка, показания и замена.
+%% Источник: ../model.dbml, ../invariants.md (INV-14, INV-15).
+stateDiagram-v2
+    [*] --> Active: установка (installed_on) + первая поверка (meter_verification)
+    Active --> VerificationDue: приближается valid_until последней поверки
+    VerificationDue --> Active: новая поверка (запись meter_verification, valid_until продлён)
+    VerificationDue --> VerificationExpired: valid_until прошёл
+    VerificationExpired --> Active: поверка выполнена
+    Active --> Retired: вывод из эксплуатации (retired_on)
+    Active --> Replaced: замена счётчика (новый meter + начальное показание)
+    Replaced --> [*]
+    Retired --> [*]
+
+    note right of Active
+        Показание за период: одно на (meter, period) (INV-14).
+        Убывание допустимо только с подтверждением и причиной; замена — отдельная операция.
+        Вне срока поверки показание отклоняется (INV-15).
+    end note

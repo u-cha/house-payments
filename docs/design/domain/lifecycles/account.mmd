@@ -1,0 +1,11 @@
+%% Жизненный цикл лицевого счёта (account).
+%% Источник: ../model.dbml, ../invariants.md (INV-12).
+stateDiagram-v2
+    [*] --> Open: OpenAccount (помещение × поставщик)
+    Open --> Closed: CloseAccount (долг = 0)
+    Closed --> [*]
+
+    note right of Open
+        Начисления, квитанции и платежи разрешены.
+        Закрытие при ненулевом долге запрещено (INV-12).
+    end note
