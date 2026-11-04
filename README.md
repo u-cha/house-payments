@@ -82,9 +82,9 @@ ADR после принятия не переписываются: новое р
 - Версии — аннотированные теги `vX.Y.Z` на `main` и GitHub Releases; изменения —
   [CHANGELOG.md](CHANGELOG.md). До 1.0 — `0.x`; вехи roadmap: M0 `v0.1.0`,
   M1 `v0.2.0`, M2 `v0.3.0`, M3 `v0.4.0`, M4 `v1.0.0`.
-- CI тестов уже работает: job `check` на Ubuntu на каждой ветке и PR; опрос —
-  `pnpm ci:status` (ADR-0015). Матрица трёх ОС (macOS — разработка, Windows и
-  Linux — использование) и установщики — эпик E-12.
+- CI тестов уже работает: job `check` на Ubuntu на каждом PR в `main` и по ручному
+  запуску; опрос — `pnpm ci:status` (ADR-0016). Матрица трёх ОС (macOS —
+  разработка, Windows и Linux — использование) и установщики — эпик E-12.
 
 ## Проверка артефактов
 
@@ -107,10 +107,11 @@ pnpm diagrams:examples  # то же для docs/design/_examples/
 
 ## CI и опрос результатов
 
-Каждая ветка и каждый PR проверяются GitHub Actions: workflow
+Проверки запускаются на каждый pull request в `main`: workflow
 [ci.yml](.github/workflows/ci.yml), job `check` — установка зависимостей и
-`pnpm check` на Ubuntu. Устройство и границы — [ADR-0015](docs/design/architecture/adr/0015-ci-tests-and-status-polling.md);
+`pnpm check` на Ubuntu. Устройство и границы — [ADR-0016](docs/design/architecture/adr/0016-ci-triggers-on-pull-request.md);
 матрица macOS/Windows/Linux появится вместе с кодом приложения (E-01/E-12).
+Ветку без PR проверяют ручным запуском: `gh workflow run ci.yml --ref <ветка>`.
 
 ```bash
 pnpm ci:status                  # последний прогон текущей ветки

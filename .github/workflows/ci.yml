@@ -1,5 +1,5 @@
 # CI тестов проекта: проверки документации и тесты проверок.
-# Решение и границы — docs/design/architecture/adr/0015-ci-tests-and-status-polling.md.
+# Решение и границы — docs/design/architecture/adr/0016-ci-triggers-on-pull-request.md.
 #
 # Сейчас job один и запускается на Ubuntu: тестируются артефакты документации,
 # которые от ОС не зависят. Матрица macOS/Windows/Linux (R-03) добавляется вместе
@@ -8,15 +8,16 @@
 name: CI
 
 on:
-  push:
-    # Любая ветка: прогон до PR нужен, чтобы проверить сам workflow и опрос
-    # результатов. Теги сюда не входят.
-    branches: ['**']
+  # Только PR в main: push-триггер отменён (ADR-0016), иначе каждый пуш в ветку
+  # с открытым PR давал два прогона на один коммит — push и pull_request.
   pull_request:
     branches: [main]
+  # Ручной запуск — для ветки без PR и для проверки самого workflow:
+  # gh workflow run ci.yml --ref <ветка>
   workflow_dispatch:
 
-# Новый push в ту же ветку отменяет предыдущий прогон: проверяем последний коммит.
+# Новый пуш в ту же ветку отменяет предыдущий прогон: проверяем последний коммит.
+# Для pull_request github.ref — refs/pull/N/merge, то есть группа на один PR.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
