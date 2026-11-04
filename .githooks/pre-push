@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — не пускать пуш ветки, в которой нет свежего <remote>/main.
+#
+# Правило: AGENTS.md §3.8, ADR-0017. Устанавливается `pnpm bootstrap`
+# (git config core.hooksPath .githooks). Обход `git push --no-verify` допустим
+# только с явного разрешения пользователя.
+#
+# Проверка: для каждой запушенной ветки <remote>/main должен быть предком
+# запушенного коммита. Конфликты не разрешаются автоматически — хук только
+# останавливает пуш и печатает следующий шаг.
+set -u
+
+remote="${1:-origin}"
+refs="$(cat)"
+status=0
+need_fetch=0
+branch_refs=""
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "${local_ref:-}" ] && continue
+  case "$remote_ref" in
+    refs/tags/*) continue ;;
+    refs/heads/main)
+      echo "✗ push в main запрещён: только pull request (AGENTS.md §3.1)." >&2
+      status=1
+      ;;
+    refs/heads/*)
+      need_fetch=1
+      case "$local_sha" in
+        0000000000000000000000000000000000000000) continue ;; # удаление ветки
+      esac
+      branch_refs="${branch_refs}${remote_ref} ${local_sha}"$'\n'
+      ;;
+  esac
+done <<< "$refs"
+
+if [ "$need_fetch" = 1 ]; then
+  if ! git fetch --quiet "$remote" main 2>/dev/null; then
+    if git rev-parse -q --verify "refs/remotes/$remote/main" >/dev/null 2>&1; then
+      echo "⚠ не удалось обновить $remote/main (сеть?) — проверяю по известной ссылке." >&2
+    else
+      echo "✗ не удалось получить $remote/main, локальной ссылки нет — пуш без проверки запрещён (AGENTS.md §3.8)." >&2
+      exit 1
+    fi
+  fi
+fi
+
+while read -r remote_ref local_sha; do
+  [ -z "${remote_ref:-}" ] && continue
+  if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    echo "✗ незавершённый merge: заверши его (git commit) или отмени (git merge --abort)." >&2
+    status=1
+    continue
+  fi
+  if ! git merge-base --is-ancestor "refs/remotes/$remote/main" "$local_sha" 2>/dev/null; then
+    echo "✗ ветка $remote_ref не содержит свежий $remote/main — пуш остановлен." >&2
+    echo "  1) pnpm sync:main   # git fetch + git merge origin/main" >&2
+    echo "  2) pnpm check" >&2
+    echo "  3) git push" >&2
+    echo "  Конфликт непонятен — остановись и спроси пользователя (AGENTS.md §3.8)." >&2
+    status=1
+  fi
+done <<< "$branch_refs"
+
+exit "$status"

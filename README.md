@@ -77,6 +77,11 @@ ADR после принятия не переписываются: новое р
 - Ветка: `<тип>/<id-задачи>-<слаг>`, например `feat/t-mw…-invoice-draft`.
 - Коммиты — Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …), в теле
   строка `Task: <id>`.
+- Перед пушем — свежий `main`: `pnpm sync:main` (fetch + merge `origin/main`,
+  без rebase), затем `pnpm check`. Конфликты разрешаются вручную; если непонятно,
+  чья версия верна, — вопрос пользователю, а не `--ours`/`--theirs`. `pnpm bootstrap`
+  включает `pre-push`-хук, который не пускает пуш ветки без свежего `main`
+  ([ADR-0017](docs/design/architecture/adr/0017-sync-main-before-push.md)).
 - PR: что/зачем/как проверено/риски; зелёный `pnpm check` и job CI `check`;
   squash-merge, ветка удаляется. Merge подтверждает владелец репозитория.
 - Версии — аннотированные теги `vX.Y.Z` на `main` и GitHub Releases; изменения —

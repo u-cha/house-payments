@@ -9,7 +9,8 @@
  *   1. clones missing repositories (blobless + sparse) or updates existing ones;
  *   2. checks out exactly the pinned commit (detached HEAD);
  *   3. applies the locked sparse paths;
- *   4. creates `.dsh/skills/<name>` -> `../../third_party/<dir>/<path>` symlinks.
+ *   4. creates `.dsh/skills/<name>` -> `../../third_party/<dir>/<path>` symlinks;
+ *   5. включает локальный `pre-push`-хук из `.githooks/` (AGENTS.md §3.8, ADR-0017).
  *
  * Idempotent: running it again converges to the locked state and never deletes
  * local changes silently — an existing clone with a dirty tree is left alone
@@ -91,6 +92,28 @@ function lstatExists(path) {
   }
 }
 
+/**
+ * Включает локальный pre-push-хук: `core.hooksPath = .githooks`.
+ * Хук не пускает пуш ветки без свежего `origin/main` (AGENTS.md §3.8, ADR-0017).
+ * Чужой `core.hooksPath` не перезаписывается — только предупреждение.
+ */
+function ensureHooksPath() {
+  if (!existsSync(join(root, '.githooks/pre-push')) || !isGitRepo(root)) return;
+  let current = '';
+  try {
+    current = run(['config', '--get', 'core.hooksPath']);
+  } catch {
+    current = '';
+  }
+  if (current === '.githooks') return;
+  if (current) {
+    console.warn(`skip   core.hooksPath: уже задан «${current}», не перезаписываю`);
+    return;
+  }
+  run(['config', 'core.hooksPath', '.githooks']);
+  console.log('hooks  core.hooksPath = .githooks (pre-push: свежий origin/main)');
+}
+
 const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
 let failures = 0;
 
@@ -107,8 +130,16 @@ for (const spec of lock.repos) {
   }
 }
 
+try {
+  ensureHooksPath();
+} catch (error) {
+  failures += 1;
+  console.error(`error  core.hooksPath: ${error.message}`);
+}
+
 if (failures > 0) {
   console.error(`\nbootstrap finished with ${failures} failed repositories`);
   process.exit(1);
 }
+
 console.log('\nbootstrap ok: skill clones are at the pinned commits and symlinks are in place');
