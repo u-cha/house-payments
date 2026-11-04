@@ -29,7 +29,7 @@
 docs/design/
   brief.md                 границы, требования FR, критерии AC, допущения, OQ
   traceability.md          FR → модуль → сущность → инвариант → ADR → UX → проверка
-  roadmap.md               вехи M0–M5, эпики E-01…E-15, зависимости, DoD
+  roadmap.md               вехи M0–M5, гейты V0–V3, эпики E-01…E-15, порядок M0, зависимости, DoD
   risks.md                 R-01…R-10, решения и условия пересмотра
   domain/
     glossary.md            канонические термины
@@ -65,6 +65,7 @@ docs/design/
 | `INV-01…` | Инварианты | [domain/invariants.md](domain/invariants.md) |
 | `ADR-0001…` | Архитектурные решения | [architecture/adr/](architecture/adr/README.md) |
 | `E-01…`, `M0…` | Эпики и вехи | [roadmap.md](roadmap.md) |
+| `V0…` | Гейты первой запускаемой версии | [roadmap.md](roadmap.md) §3 |
 | `US-01…`, `S-01…` | Сценарии и экраны | [ux/](ux/scenarios.md) |
 | `OQ-01…`, `A-01…`, `DM-A-…` | Открытые вопросы, допущения | [risks.md](risks.md) §3, [domain/entities.md](domain/entities.md) §9 |
 
@@ -95,6 +96,7 @@ pnpm diagrams     # рендер всех .mmd/.dbml в .svg/.png
 
 Все артефакты — `proposed`: решение принимает владелец продукта. Риски и открытые
 вопросы закрыты решениями пользователя 2026-11-04 — [risks.md](risks.md); порядок
-эпиков зафиксирован решением OQ-01 (распознавание квитанций — в M2). Итоги ревью
+эпиков зафиксирован решением OQ-01 (распознавание квитанций — в M2), гейты V0–V3
+и порядок задач M0 — [roadmap.md](roadmap.md) §3. Итоги ревью
 консистентности и принятые решения — в
 [review/consistency-2026-11-04.md](review/consistency-2026-11-04.md).
