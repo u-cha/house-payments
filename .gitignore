@@ -20,6 +20,10 @@ dist/
 build/
 out/
 release/
+
+# иконка приложения: в git — только исходный PNG; .icns генерирует electron-builder
+!apps/desktop/build/
+apps/desktop/build/icon.icns
 coverage/
 *.tsbuildinfo
 *.log

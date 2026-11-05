@@ -1,0 +1,38 @@
+# Черновая macOS-сборка (M0-03): неподписанный .dmg без нотаризации.
+# Единый каталог артефактов — release/ в корне репозитория (ADR-0018);
+# повторная сборка перезаписывает его, версионных подкаталогов нет.
+appId: com.housepayments.desktop
+productName: house-payments
+copyright: house-payments
+
+directories:
+  output: ../../release
+  buildResources: build
+
+# В приложение идёт только собранный код: main/preload (dist/node) и renderer
+# (dist/renderer). Исходники, тесты и dev-зависимости в пакет не попадают.
+files:
+  - dist/**/*
+  - package.json
+
+asar: true
+
+# Кэш скачанного Electron — внутри репозитория (каталог в .gitignore), чтобы
+# сборка не зависела от ~/Library/Caches и работала в изолированных средах.
+electronDownload:
+  cache: ../../.cache/electron
+
+mac:
+  category: public.app-category.finance
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  # Тестовая сборка без Developer ID и нотаризации (R-04, ADR-0009).
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+
+dmg:
+  artifactName: house-payments-${version}-${arch}.${ext}
