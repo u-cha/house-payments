@@ -14,4 +14,9 @@ ignoredBuiltDependencies:
   - oracledb
   - puppeteer
 
+# electron's postinstall downloads the platform binary (M0-02); it is the only
+# dependency whose install script we do run.
+onlyBuiltDependencies:
+  - electron
+
 strictDepBuilds: false
