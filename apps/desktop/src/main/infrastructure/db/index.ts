@@ -30,4 +30,6 @@ export function openAppDatabase(file: string, options: OpenAppDatabaseOptions = 
 }
 
 export { BUSY_TIMEOUT_MS, openConnection, type AppDatabase } from './connection.js';
+export { createEventRecorder, type EventRecorderOptions } from './event-recorder.js';
 export { loadMigrations, migrate, MigrationError, type Migration } from './migrations.js';
+export { withTransaction } from './transaction.js';
