@@ -160,3 +160,27 @@ pnpm ci:status --json           # машинный вывод
 Будущее приложение — Electron-установщик под Windows/macOS/Linux; Docker, сервер
 и интернет не нужны. Решение и обоснование — ADR-0009, ADR-0010 в
 [docs/design/architecture/adr/](docs/design/architecture/adr/README.md).
+
+### Черновая `.dmg` для macOS (без подписи)
+
+Пока сертификатов нет (R-04), macOS-сборка — неподписанный черновик для
+локальной проверки:
+
+```bash
+pnpm dist:mac          # arm64 .dmg в release/ (единственный каталог, ADR-0018)
+open release/house-payments-*-arm64.dmg
+```
+
+Перетащите `house-payments.app` в `/Applications` и запустите. Сборка не
+подписана и не нотаризована, поэтому Gatekeeper может её заблокировать. Тогда:
+
+- правый клик по `house-payments.app` → **Открыть** → **Открыть** в диалоге; или
+- снять карантин и запустить обычным двойным кликом:
+
+  ```bash
+  xattr -d com.apple.quarantine /Applications/house-payments.app
+  ```
+
+Повторный `pnpm dist:mac` очищает `release/` и перезаписывает артефакт: рядом не
+копится история версий. Сам каталог `release/` в `.gitignore`; Windows/Linux,
+подписанные и CI-сборки — вне этой задачи (M0-13).
