@@ -26,6 +26,7 @@
 | [0015](0015-ci-tests-and-status-polling.md) | CI тестов и опрос результатов прогонов | superseded by [0016](0016-ci-triggers-on-pull-request.md) | 2026-11-04 | — |
 | [0016](0016-ci-triggers-on-pull-request.md) | Триггеры CI — только pull request в `main` | accepted | 2026-11-04 | ADR-0015 |
 | [0017](0017-sync-main-before-push.md) | Свежий `main` перед пушем: скрипт, хук, требование актуальности | accepted | 2026-11-04 | — |
+| [0018](0018-latest-runnable-artifact.md) | Единый «последний» запускаемый артефакт для ручных проверок | accepted | 2026-11-05 | — |
 
 Решения, не требующие отдельного ADR, перечислены в
 [architecture/README.md](../README.md) §3: они локальны, обратимы и меняются без
