@@ -3,6 +3,7 @@
   "private": true,
   "description": "house-payments: product monorepo — design artifacts and the desktop app",
   "scripts": {
+    "dev": "pnpm --filter @house-payments/desktop dev",
     "test": "node --test tests/*.test.mjs && pnpm --filter @house-payments/desktop test",
     "lint": "pnpm --filter @house-payments/desktop lint",
     "typecheck": "pnpm --filter @house-payments/desktop typecheck",
