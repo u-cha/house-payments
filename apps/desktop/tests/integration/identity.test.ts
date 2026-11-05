@@ -183,7 +183,7 @@ describe('INV-16: последний owner', () => {
     });
   });
 
-  it('still allows managing a member profile', async () => {
+  it('soft-deletes a member, keeps the audit trail and blocks the login', async () => {
     const owner = await createProfile(db, { name: 'Владелец', password: PASSWORD }, deps);
     const member = await createProfile(
       db,
@@ -193,6 +193,21 @@ describe('INV-16: последний owner', () => {
 
     expect(deactivateProfile(db, member.id, deps)).toMatchObject({ isActive: false });
     expect(deleteProfile(db, member.id, deps)).toBeUndefined();
-    expect(db.prepare('SELECT id FROM profile').pluck().all()).toEqual([owner.id]);
+    // Мягкое удаление: строка и аудит остаются, вход по профилю невозможен.
+    expect(db.prepare('SELECT id, is_active FROM profile ORDER BY id').all()).toEqual([
+      { id: owner.id, is_active: 1 },
+      { id: member.id, is_active: 0 },
+    ]);
+    expect(
+      db.prepare('SELECT COUNT(*) FROM audit_event WHERE profile_id = ?').pluck().get(member.id),
+    ).toBeGreaterThan(0);
+    const sessions = new InMemorySessionStore(new FixedClock(NOW));
+    const error = await authenticate(
+      db,
+      { name: 'Член семьи', password: PASSWORD },
+      sessions,
+      deps,
+    ).catch((caught: unknown) => caught);
+    expect((error as AppError).code).toBe('UNAUTHENTICATED');
   });
 });

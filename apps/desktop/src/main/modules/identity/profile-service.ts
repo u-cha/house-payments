@@ -127,11 +127,6 @@ export async function createProfile(
   const role = input.role ?? 'owner';
   if (role !== 'owner' && role !== 'member') throw fail('VALIDATION_FAILED', 'Неизвестная роль');
 
-  if (db.prepare('SELECT 1 FROM profile WHERE name = ?').pluck().get(name) !== undefined) {
-    throw conflict('Профиль с таким именем уже существует', 'DUPLICATE_NAME');
-  }
-  if (role === 'owner' && ownerExists(db)) throw conflict(OWNER_EXISTS_MESSAGE, 'OWNER_EXISTS');
-
   const passwordHash = await hashPassword(input.password);
   const now = (deps.clock ?? systemClock).now().toISOString();
   const row: ProfileRow = {
@@ -144,6 +139,12 @@ export async function createProfile(
     updated_at: now,
   };
   withTransaction(db, () => {
+    // Проверки внутри BEGIN IMMEDIATE: параллельный вызов ждёт коммита и видит owner,
+    // поэтому двух owner не появится даже при двух экземплярах приложения.
+    if (db.prepare('SELECT 1 FROM profile WHERE name = ?').pluck().get(name) !== undefined) {
+      throw conflict('Профиль с таким именем уже существует', 'DUPLICATE_NAME');
+    }
+    if (role === 'owner' && ownerExists(db)) throw conflict(OWNER_EXISTS_MESSAGE, 'OWNER_EXISTS');
     db.prepare(
       `INSERT INTO profile (id, name, role, password_hash, is_active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -213,11 +214,17 @@ export function changeRole(
   return toProfile({ ...row, role, updated_at: now });
 }
 
+/**
+ * Мягкое удаление: профиль остаётся в файле (`is_active = 0`), чтобы не рвать
+ * ссылки `audit_event.profile_id` и историю изменений (entities.md: профиль с
+ * аудитом не удаляется физически). Вход по нему больше невозможен.
+ */
 export function deleteProfile(db: AppDatabase, profileId: string, deps: IdentityDeps): void {
   const row = requireProfile(db, profileId);
   assertNotLastOwner(db, row);
+  const now = (deps.clock ?? systemClock).now().toISOString();
   withTransaction(db, () => {
-    db.prepare('DELETE FROM profile WHERE id = ?').run(row.id);
+    db.prepare('UPDATE profile SET is_active = 0, updated_at = ? WHERE id = ?').run(now, row.id);
     recordProfileEvent(deps, row, 'deleted', 'profile.delete');
   });
 }
