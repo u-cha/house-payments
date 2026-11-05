@@ -1,6 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { AppDatabase } from './connection.js';
+
+/** Рядом с этим модулем: `src/...` в тестах, `dist/node/main/...` в сборке. */
+export const DEFAULT_MIGRATIONS_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'migrations',
+);
 
 export interface Migration {
   version: number;

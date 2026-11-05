@@ -1,7 +1,9 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openDataFile, type AppDatabase } from './infrastructure/db/index.js';
 import { registerPing } from './ipc/ping.js';
+import { AppError } from './shared/index.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 // main собирается в dist/node/main, preload — в dist/node/preload/preload.cjs.
@@ -32,13 +34,26 @@ function createWindow(): void {
   }
 }
 
+let database: AppDatabase | undefined;
+
 void app.whenReady().then(() => {
+  try {
+    // Файл в userData: создаётся при первом запуске, открывается при следующих.
+    database = openDataFile(app.getPath('userData'));
+  } catch (error) {
+    const message = error instanceof AppError ? error.message : 'Не удалось открыть файл данных';
+    dialog.showErrorBox('house-payments', message);
+    app.quit();
+    return;
+  }
   registerPing();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('will-quit', () => database?.close());
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
