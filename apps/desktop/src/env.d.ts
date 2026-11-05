@@ -1,3 +1,10 @@
-// Общие объявления типов приложения появятся вместе с модулями (core-modules §10).
-// Файл существует, чтобы обе TS-программы (node и web) имели хотя бы один вход.
+import type { HousePaymentsApi } from './shared/ipc.js';
+
+declare global {
+  interface Window {
+    /** Мост preload → renderer; Node-API вне этого объекта не доступен. */
+    api: HousePaymentsApi;
+  }
+}
+
 export {};

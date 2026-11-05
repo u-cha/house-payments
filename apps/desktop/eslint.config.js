@@ -8,5 +8,7 @@ export default tseslint.config(
   { ignores: ['dist/', 'release/', 'coverage/', 'node_modules/'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // Sandboxed preload обязан быть CommonJS — require-импорт здесь уместен.
+  { files: ['**/*.cts'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
   prettier,
 );
