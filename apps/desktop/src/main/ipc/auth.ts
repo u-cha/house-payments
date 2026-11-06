@@ -7,12 +7,12 @@ import {
   AUTH_STATUS_CHANNEL,
   type AuthStatusResult,
   type CreateOwnerInput,
-  type IpcResult,
   type LoginInput,
   type ProfileDto,
   type SessionDto,
 } from '../../shared/ipc.js';
 import type { AppDatabase } from '../infrastructure/db/connection.js';
+import { parseIpcInput, respond } from './result.js';
 import {
   authenticate,
   createProfile,
@@ -21,19 +21,11 @@ import {
   type InMemorySessionStore,
   type Profile,
 } from '../modules/identity/index.js';
-import { AppError, toAppError } from '../shared/errors.js';
+import { AppError } from '../shared/errors.js';
 
 const createOwnerSchema = z.object({ name: z.string(), password: z.string() });
 const loginSchema = z.object({ password: z.string() });
 const logoutSchema = z.string();
-
-const INVALID_REQUEST = 'Некорректные данные запроса';
-
-function parse<T>(schema: z.ZodType<T>, value: unknown): T {
-  const result = schema.safeParse(value);
-  if (!result.success) throw new AppError({ code: 'VALIDATION_FAILED', message: INVALID_REQUEST });
-  return result.data;
-}
 
 function toDto(profile: Profile): ProfileDto {
   return { id: profile.id, name: profile.name, role: profile.role };
@@ -87,15 +79,6 @@ export function createAuthHandlers(
   };
 }
 
-/** Любая команда моста отвечает результатом или безопасной AppError (core-modules §6). */
-async function respond<T>(work: () => T | Promise<T>): Promise<IpcResult<T>> {
-  try {
-    return { ok: true, data: await work() };
-  } catch (error) {
-    return { ok: false, error: toAppError(error).toJSON() };
-  }
-}
-
 export function registerAuth(
   db: AppDatabase,
   deps: IdentityDeps,
@@ -104,14 +87,14 @@ export function registerAuth(
   const handlers = createAuthHandlers(db, deps, sessions);
   ipcMain.handle(AUTH_STATUS_CHANNEL, () => respond(() => handlers.status()));
   ipcMain.handle(AUTH_CREATE_OWNER_CHANNEL, (_event, input: unknown) =>
-    respond(() => handlers.createOwner(parse(createOwnerSchema, input))),
+    respond(() => handlers.createOwner(parseIpcInput(createOwnerSchema, input))),
   );
   ipcMain.handle(AUTH_LOGIN_CHANNEL, (_event, input: unknown) =>
-    respond(() => handlers.login(parse(loginSchema, input))),
+    respond(() => handlers.login(parseIpcInput(loginSchema, input))),
   );
   ipcMain.handle(AUTH_LOGOUT_CHANNEL, (_event, sessionId: unknown) =>
     respond(() => {
-      handlers.logout(parse(logoutSchema, sessionId));
+      handlers.logout(parseIpcInput(logoutSchema, sessionId));
       return null;
     }),
   );
