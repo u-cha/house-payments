@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "tsc -p tsconfig.node.json && node scripts/copy-migrations.mjs && vite build",
-    "dist:mac": "pnpm build && node scripts/clean-release.mjs && electron-builder --mac dmg",
+    "dist:mac": "pnpm build && node scripts/clean-release.mjs && electron-builder --mac dmg && node scripts/print-artifact.mjs",
     "lint": "eslint . && prettier --check .",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run --root . --passWithNoTests",

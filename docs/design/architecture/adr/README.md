@@ -27,6 +27,7 @@
 | [0016](0016-ci-triggers-on-pull-request.md) | Триггеры CI — только pull request в `main` | accepted | 2026-11-04 | ADR-0015 |
 | [0017](0017-sync-main-before-push.md) | Свежий `main` перед пушем: скрипт, хук, требование актуальности | accepted | 2026-11-04 | — |
 | [0018](0018-latest-runnable-artifact.md) | Единый «последний» запускаемый артефакт для ручных проверок | accepted | 2026-11-05 | — |
+| [0019](0019-iteration-artifact-and-link.md) | Пересборка и ссылка на артефакт по итогу итерации | accepted | 2026-11-06 | дополняет ADR-0018 |
 
 Решения, не требующие отдельного ADR, перечислены в
 [architecture/README.md](../README.md) §3: они локальны, обратимы и меняются без
