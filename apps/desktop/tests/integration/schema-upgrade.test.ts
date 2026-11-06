@@ -39,7 +39,7 @@ function captureError(work: () => unknown): AppError {
  * не имеет `property_type.name_key`, и добавление типа падало внутренней
  * ошибкой SQLite. Миграция 005 должна починить такой файл без потери типов.
  */
-describe('миграция 005: name_key в существующем файле', () => {
+describe('миграции 005–006: name_key и нижний регистр в существующем файле', () => {
   it('добавляет колонку, заполняет ключи и возвращает добавление типов', () => {
     const file = tempDatabaseFile();
 
@@ -61,7 +61,7 @@ describe('миграция 005: name_key в существующем файле'
         ('0192c000-0000-7000-8000-000000000004', 'Земельный участок', 40, 1, '${NOW}'),
         ('0192c000-0000-7000-8000-000000000005', 'Нежилое помещение', 50, 1, '${NOW}'),
         ('0192c000-0000-7000-8000-000000000006', 'Гараж', 100, 1, '${NOW}');
-      DELETE FROM schema_version WHERE version = 5;
+      DELETE FROM schema_version WHERE version IN (5, 6);
     `);
     db.close();
 
@@ -72,16 +72,17 @@ describe('миграция 005: name_key в существующем файле'
         .prepare('SELECT version FROM schema_version ORDER BY version')
         .pluck()
         .all();
-      expect(versions).toEqual([1, 2, 3, 4, 5]);
+      expect(versions).toEqual([1, 2, 3, 4, 5, 6]);
 
       const keys = upgraded
         .prepare('SELECT name, name_key FROM property_type ORDER BY name')
         .all() as Array<{ name: string; name_key: string }>;
+      // Миграция 006 приводит хранимое название и ключ к нижнему регистру.
       expect(keys).toEqual(
         expect.arrayContaining([
-          { name: 'Гараж', name_key: 'гараж' },
-          { name: 'Квартира', name_key: 'квартира' },
-          { name: 'Машиноместо', name_key: 'машиноместо' },
+          { name: 'гараж', name_key: 'гараж' },
+          { name: 'квартира', name_key: 'квартира' },
+          { name: 'машиноместо', name_key: 'машиноместо' },
         ]),
       );
 
@@ -93,13 +94,13 @@ describe('миграция 005: name_key в существующем файле'
         }),
       });
 
-      expect(catalog.createPropertyType({ name: 'Погреб' })).toMatchObject({ name: 'Погреб' });
+      expect(catalog.createPropertyType({ name: 'Погреб' })).toMatchObject({ name: 'погреб' });
       // Уникальность без учёта регистра снова обеспечивается БД.
       expect(captureError(() => catalog.createPropertyType({ name: 'ПОГРЕБ' })).code).toBe(
         'CONFLICT',
       );
       expect(
-        upgraded.prepare("SELECT name_key FROM property_type WHERE name = 'Погреб'").pluck().get(),
+        upgraded.prepare("SELECT name_key FROM property_type WHERE name = 'погреб'").pluck().get(),
       ).toBe('погреб');
     } finally {
       upgraded.close();
@@ -113,6 +114,13 @@ describe('миграция 005: name_key в существующем файле'
       const rows = db
         .prepare('SELECT name, name_key FROM property_type ORDER BY sort_order')
         .all() as Array<{ name: string; name_key: string }>;
+      expect(rows.map((row) => row.name)).toEqual([
+        'квартира',
+        'дом',
+        'машиноместо',
+        'земельный участок',
+        'нежилое помещение',
+      ]);
       expect(rows.map((row) => row.name_key)).toEqual([
         'квартира',
         'дом',

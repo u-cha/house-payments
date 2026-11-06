@@ -41,7 +41,7 @@ vi.mock('electron', () => ({
 
 const NOW = '2026-11-06T10:00:00.000Z';
 const ACTOR: CatalogActor = { profileId: 'profile-1' };
-const BUILT_IN_TYPES = ['Квартира', 'Дом', 'Машиноместо', 'Земельный участок', 'Нежилое помещение'];
+const BUILT_IN_TYPES = ['квартира', 'дом', 'машиноместо', 'земельный участок', 'нежилое помещение'];
 const tempDirs: string[] = [];
 let file: string;
 let db: AppDatabase;
@@ -57,7 +57,7 @@ function tempDatabaseFile(): string {
 }
 
 function typeId(name: string): string {
-  const type = catalog.listPropertyTypes().find((item) => item.name === name);
+  const type = catalog.listPropertyTypes().find((item) => item.name === name.toLowerCase());
   if (type === undefined) throw new Error(`тип ${name} не найден`);
   return type.id;
 }
@@ -106,13 +106,13 @@ describe('справочник типов объектов', () => {
     expect(catalog.listPropertyTypes().map((type) => type.name)).toEqual(BUILT_IN_TYPES);
 
     const custom = catalog.createPropertyType({ name: '  Гараж  ' });
-    expect(custom).toMatchObject({ name: 'Гараж', isActive: true });
+    expect(custom).toMatchObject({ name: 'гараж', isActive: true });
 
     expect(catalog.updatePropertyType({ id: custom.id, name: 'Гараж во дворе' })).toMatchObject({
-      name: 'Гараж во дворе',
+      name: 'гараж во дворе',
     });
     catalog.updatePropertyType({ id: custom.id, isActive: false });
-    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('Гараж во дворе');
+    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('гараж во дворе');
     expect(
       catalog.listPropertyTypes({ includeArchived: true }).find((type) => type.id === custom.id),
     ).toMatchObject({ isActive: false });
@@ -142,7 +142,7 @@ describe('объекты: создание, чтение, правка и арх
 
     expect(property).toMatchObject({
       label: 'Карабайка 36',
-      typeName: 'Квартира',
+      typeName: 'квартира',
       areaM2: 54.3,
       shareBp: 10000,
       status: 'active',
@@ -173,7 +173,7 @@ describe('объекты: создание, чтение, правка и арх
       note: null,
     });
     expect(updated).toMatchObject({
-      typeName: 'Дом',
+      typeName: 'дом',
       label: 'Карабайка 36, дом',
       areaM2: 120,
       shareBp: 5000,
@@ -228,7 +228,7 @@ describe('объекты: создание, чтение, правка и арх
 
     expect(catalog.getProperty(property.id)).toMatchObject({
       label: 'Подземный паркинг, 12',
-      typeName: 'Машиноместо',
+      typeName: 'машиноместо',
       shareBp: 2500,
     });
     expect(catalog.listProperties()).toHaveLength(1);
@@ -289,14 +289,14 @@ describe('IPC-мост каталога', () => {
       address: 'Карабайка, 36',
       areaM2: 80,
     });
-    expect(created).toMatchObject({ ok: true, data: { label: 'Карабайка 36', typeName: 'Дом' } });
+    expect(created).toMatchObject({ ok: true, data: { label: 'Карабайка 36', typeName: 'дом' } });
 
     const listed = await invoke(CATALOG_LIST_PROPERTIES_CHANNEL, {});
     expect(listed).toMatchObject({ ok: true, data: [{ label: 'Карабайка 36' }] });
 
     const types = await invoke(CATALOG_LIST_PROPERTY_TYPES_CHANNEL, {});
     expect(types['ok']).toBe(true);
-    expect((types['data'] as Array<{ name: string }>)[0]).toMatchObject({ name: 'Квартира' });
+    expect((types['data'] as Array<{ name: string }>)[0]).toMatchObject({ name: 'квартира' });
 
     const archived = await invoke(CATALOG_ARCHIVE_PROPERTY_CHANNEL, 'unknown');
     expect(archived).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });

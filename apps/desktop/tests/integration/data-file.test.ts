@@ -62,7 +62,7 @@ describe('data file', () => {
       );
       expect(
         second.prepare('SELECT version FROM schema_version ORDER BY version').pluck().all(),
-      ).toEqual([1, 2, 3, 4, 5]);
+      ).toEqual([1, 2, 3, 4, 5, 6]);
     } finally {
       second.close();
     }
@@ -75,7 +75,7 @@ describe('data file', () => {
     try {
       db.prepare(SETTING_SQL).run('theme', 'dark', NOW);
       db.prepare('INSERT INTO schema_version (version, applied_at, note) VALUES (?, ?, ?)').run(
-        6,
+        7,
         NOW,
         'future',
       );
@@ -97,7 +97,7 @@ describe('data file', () => {
     expect(sha256(file)).toBe(before);
     const check = openConnection(file);
     try {
-      expect(check.prepare('SELECT MAX(version) FROM schema_version').pluck().get()).toBe(6);
+      expect(check.prepare('SELECT MAX(version) FROM schema_version').pluck().get()).toBe(7);
       expect(check.prepare('SELECT value FROM setting WHERE key = ?').pluck().get('theme')).toBe(
         'dark',
       );

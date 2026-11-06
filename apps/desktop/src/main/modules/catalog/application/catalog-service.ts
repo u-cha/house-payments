@@ -14,6 +14,7 @@ import {
   MAX_SHARE_BP,
   MAX_TYPE_NAME_LENGTH,
   MIN_SHARE_BP,
+  normalizeTypeName,
   type Property,
   type PropertyStatus,
   type PropertyType,
@@ -326,7 +327,8 @@ export function createCatalogService(
       const now = clock.now().toISOString();
       const type: PropertyType = {
         id: uuidv7(),
-        name: requiredText(input.name, 'Название типа', MAX_TYPE_NAME_LENGTH),
+        // Название типа хранится в нижнем регистре: единое написание на всех экранах.
+        name: normalizeTypeName(requiredText(input.name, 'Название типа', MAX_TYPE_NAME_LENGTH)),
         sortOrder: typeSortOrder(input.sortOrder),
         isActive: true,
         createdAt: now,
@@ -347,7 +349,7 @@ export function createCatalogService(
         const name =
           input.name === undefined
             ? current.name
-            : requiredText(input.name, 'Название типа', MAX_TYPE_NAME_LENGTH);
+            : normalizeTypeName(requiredText(input.name, 'Название типа', MAX_TYPE_NAME_LENGTH));
         if (input.isActive !== undefined && typeof input.isActive !== 'boolean') {
           throw fail('Признак активности типа: ожидается true или false');
         }

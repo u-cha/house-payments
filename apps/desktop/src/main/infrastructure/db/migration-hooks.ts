@@ -34,7 +34,24 @@ export function migratePropertyTypeNameKey(db: AppDatabase): void {
   db.exec('CREATE UNIQUE INDEX property_type_name_key ON property_type(name_key)');
 }
 
+/**
+ * 006: привести названия типов в существующем файле к единому виду — нижнему
+ * регистру. Хранимое `name` и ключ уникальности `name_key` совпадают.
+ */
+export function migratePropertyTypeNamesToLowerCase(db: AppDatabase): void {
+  const rows = db.prepare('SELECT id, name FROM property_type').all() as Array<{
+    id: string;
+    name: string;
+  }>;
+  const update = db.prepare('UPDATE property_type SET name = ?, name_key = ? WHERE id = ?');
+  for (const row of rows) {
+    const name = normalizeNameKey(row.name);
+    update.run(name, name, row.id);
+  }
+}
+
 /** JS-шаги миграций, которые нельзя выразить идемпотентным SQL. */
 export const MIGRATION_HOOKS: Record<number, (db: AppDatabase) => void> = {
   5: migratePropertyTypeNameKey,
+  6: migratePropertyTypeNamesToLowerCase,
 };
