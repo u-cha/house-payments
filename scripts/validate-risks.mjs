@@ -34,11 +34,12 @@ export const REQUIRED_COLUMNS = [
 /** Допустимые статусы решения. */
 export const STATUSES = ['принято', 'исправлено', 'отложено', 'закрыто', 'пересмотрено'];
 
-const PLACEHOLDER = /\b(TODO|TBD|FIXME)\b/;
+const PLACEHOLDER = /\b(TODO|TBD|FIXME|N\/A|Н\/Д)\b/i;
+const DASH_ONLY = /^[—–-]+$/;
 const ISO_DATE = /\b(\d{4}-\d{2}-\d{2})\b/;
 const TASK_ID = /(^|[\s(])t-[a-z0-9-]+/;
 const SUPERSEDES = /см\.\s*(R-\d+)/i;
-const ID_ROW = /^\|\s*(R-\d+)\s*\|/;
+const ID_LIKE = /^R[_\-\s]*(\d+)$/i;
 
 function cellsOf(line) {
   return line
@@ -49,6 +50,24 @@ function cellsOf(line) {
 
 function isTableRow(line) {
   return line.trim().startsWith('|');
+}
+
+/** «Пустое» значение: пусто, прочерк или n/a. */
+function isBlank(value) {
+  return value === '' || DASH_ONLY.test(value) || /^(n\/a|н\/д)$/i.test(value);
+}
+
+/** Реальная календарная дата в формате YYYY-MM-DD (не только форма). */
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/** Убирает markdown-выделение из ячейки ID, чтобы поймать `**R-11**`. */
+function normalizedIdCell(cell) {
+  return cell.replace(/\*/g, '').trim();
 }
 
 /**
@@ -74,65 +93,78 @@ export function parseRiskSection(markdown) {
     REQUIRED_COLUMNS.every((column, index) => headerCells[index] === column);
 
   const rows = section
-    .filter((row) => isTableRow(row.text) && /^\|\s*R-\d+\s*\|/.test(row.text))
+    .filter((row) => isTableRow(row.text) && ID_LIKE.test(normalizedIdCell(cellsOf(row.text)[0] ?? '')))
     .map((row) => ({ line: row.line, cells: cellsOf(row.text) }));
 
-  return { found: true, headerOk, rows, headerCells };
+  return { found: true, headerOk, rows };
 }
 
+/** Все ID журнала в документе: строка + номер (для сквозной проверки). */
 function collectIds(markdown) {
   const ids = [];
   for (const line of markdown.split(/\r?\n/)) {
-    const match = line.match(ID_ROW);
-    if (match) ids.push(match[1]);
+    if (!isTableRow(line)) continue;
+    const raw = normalizedIdCell(cellsOf(line)[0] ?? '');
+    const match = raw.match(ID_LIKE);
+    if (match) ids.push({ raw, number: Number(match[1]) });
   }
   return ids;
 }
 
+function canonicalId(number) {
+  return `R-${String(number).padStart(2, '0')}`;
+}
+
 function validateRow(cells, line, ids) {
   const errors = [];
-  const at = (message) => ({ code: message.code, message: `строка ${line}: ${message.message}` });
+  const at = (code, message) => ({ code, message: `строка ${line}: ${message}` });
 
   if (cells.length !== REQUIRED_COLUMNS.length) {
-    return [at({ code: 'RISK_ROW_COLUMNS', message: `ожидалось ${REQUIRED_COLUMNS.length} колонок, получено ${cells.length}` })];
+    return [at('RISK_ROW_COLUMNS', `ожидалось ${REQUIRED_COLUMNS.length} колонок, получено ${cells.length}`)];
   }
 
   const [id, date, task, risk, impact, options, decision, decider, trigger, status] = cells;
   const joined = cells.join(' | ');
+  const number = Number(normalizedIdCell(id).match(/\d+/)?.[0]);
 
-  if (PLACEHOLDER.test(joined)) {
-    errors.push(at({ code: 'RISK_PLACEHOLDER', message: 'заглушка TODO/TBD/FIXME вместо решения' }));
+  if (id.trim() !== canonicalId(number)) {
+    errors.push(at('RISK_ID_FORMAT', `ID «${id}» должен быть ${canonicalId(number)}`));
   }
-  if (!ISO_DATE.test(date)) {
-    errors.push(at({ code: 'RISK_DATE_INVALID', message: `дата «${date}» не в формате YYYY-MM-DD` }));
+  if (PLACEHOLDER.test(joined)) {
+    errors.push(at('RISK_PLACEHOLDER', 'заглушка вместо решения'));
+  }
+  if (!isValidIsoDate(date)) {
+    errors.push(at('RISK_DATE_INVALID', `дата «${date}» не в формате YYYY-MM-DD`));
   }
   if (task !== 'до разработки' && !TASK_ID.test(task)) {
-    errors.push(at({ code: 'RISK_TASK_INVALID', message: `задача «${task}» не t-… и не «до разработки»` }));
+    errors.push(at('RISK_TASK_INVALID', `задача «${task}» не t-… и не «до разработки»`));
   }
   if (risk.length < 20) {
-    errors.push(at({ code: 'RISK_RISK_TOO_SHORT', message: 'риск сформулирован короче 20 символов' }));
+    errors.push(at('RISK_RISK_TOO_SHORT', 'риск сформулирован короче 20 символов'));
   }
   if (impact.length < 10) {
-    errors.push(at({ code: 'RISK_IMPACT_TOO_SHORT', message: 'влияние описано короче 10 символов' }));
+    errors.push(at('RISK_IMPACT_TOO_SHORT', 'влияние описано короче 10 символов'));
   }
-  if (options === '') {
-    errors.push(at({ code: 'RISK_FIELD_EMPTY', message: 'не перечислены варианты решения' }));
+  if (isBlank(options)) {
+    errors.push(at('RISK_FIELD_EMPTY', 'не перечислены варианты решения'));
   }
-  if (decision === '') {
-    errors.push(at({ code: 'RISK_DECISION_MISSING', message: 'нет решения пользователя' }));
+  if (isBlank(decision)) {
+    errors.push(at('RISK_DECISION_MISSING', 'нет решения пользователя'));
   }
-  if (!ISO_DATE.test(decider)) {
-    errors.push(at({ code: 'RISK_DECIDER_INVALID', message: 'не указано, кто и когда решил (нет даты)' }));
+  const decidedOn = decider.match(ISO_DATE);
+  if (!decidedOn || !isValidIsoDate(decidedOn[1])) {
+    errors.push(at('RISK_DECIDER_INVALID', 'не указано, кто и когда решил (нет реальной даты)'));
   }
   if (!STATUSES.includes(status)) {
-    errors.push(at({ code: 'RISK_STATUS_INVALID', message: `статус «${status}» не из ${STATUSES.join('/')}` }));
+    errors.push(at('RISK_STATUS_INVALID', `статус «${status}» не из ${STATUSES.join('/')}`));
   }
-  if (status === 'отложено' && trigger === '') {
-    errors.push(at({ code: 'RISK_TRIGGER_MISSING', message: '«отложено» без триггера пересмотра' }));
+  // «Отложено» — решение, но только с триггером: статус или текст решения.
+  if (isBlank(trigger) && (status === 'отложено' || /отлож/i.test(decision))) {
+    errors.push(at('RISK_TRIGGER_MISSING', '«отложено» без триггера пересмотра'));
   }
   const superseded = decision.match(SUPERSEDES);
-  if (superseded && !ids.includes(superseded[1])) {
-    errors.push(at({ code: 'RISK_SUPERSEDES_UNKNOWN', message: `ссылка на несуществующий ${superseded[1]}` }));
+  if (superseded && !ids.some((entry) => entry.raw === superseded[1])) {
+    errors.push(at('RISK_SUPERSEDES_UNKNOWN', `ссылка на несуществующий ${superseded[1]}`));
   }
   return errors;
 }
@@ -157,19 +189,30 @@ export function validateRisks(markdown) {
   }
 
   const ids = collectIds(markdown);
-  const seen = new Set();
-  for (const id of ids) {
-    if (seen.has(id)) {
-      errors.push({ code: 'RISK_ID_DUPLICATE', message: `ID ${id} встречается больше одного раза` });
+  const byNumber = new Map();
+  for (const entry of ids) {
+    byNumber.set(entry.number, [...(byNumber.get(entry.number) ?? []), entry.raw]);
+    if (entry.raw !== canonicalId(entry.number)) {
+      errors.push({
+        code: 'RISK_ID_FORMAT',
+        message: `ID «${entry.raw}» должен быть ${canonicalId(entry.number)}`,
+      });
     }
-    seen.add(id);
+  }
+  for (const [number, raw] of byNumber) {
+    if (raw.length > 1) {
+      errors.push({
+        code: 'RISK_ID_DUPLICATE',
+        message: `номер R-${String(number).padStart(2, '0')} встречается ${raw.length} раза (${raw.join(', ')})`,
+      });
+    }
   }
 
-  const numbers = [...seen].map((id) => Number(id.slice(2))).sort((a, b) => a - b);
+  const numbers = [...byNumber.keys()].sort((a, b) => a - b);
   if (numbers.length > 0) {
     const missing = [];
     for (let number = 1; number <= numbers[numbers.length - 1]; number += 1) {
-      if (!numbers.includes(number)) missing.push(`R-${String(number).padStart(2, '0')}`);
+      if (!byNumber.has(number)) missing.push(canonicalId(number));
     }
     if (missing.length > 0) {
       errors.push({ code: 'RISK_ID_GAP', message: `в нумерации нет: ${missing.join(', ')}` });
