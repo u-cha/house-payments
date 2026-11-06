@@ -13,7 +13,7 @@
 
 | FR | Модуль | Таблицы | INV | ADR | UX | Эпик | Проверка |
 |---|---|---|---|---|---|---|---|
-| FR-01 | `catalog` | `property` | INV-12 | 0002 | US-02 | E-03 | `validate-docs` (refs, типы), интеграционный тест «архив не удаляет историю» |
+| FR-01 | `catalog` | `property`, `property_type` | INV-12 | 0002 | US-02 | E-03 | `validate-docs` (refs, типы), интеграционный тест «объект переживает перезапуск; архив не удаляет историю» |
 | FR-02 | `catalog` | `supplier` | — | — | US-02 | E-03 | `validate-docs` (refs), unit-тест дублей |
 | FR-03 | `catalog` | `account` | INV-12 | 0003 | US-02 | E-03 | тест «закрытие при долге запрещено» |
 | FR-04 | `catalog` | `service`, `tariff` | INV-01, INV-04 | 0002 | US-03 | E-03 | unit-тест выбора тарифа на дату, тест пересечения |
