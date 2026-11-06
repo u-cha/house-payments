@@ -25,6 +25,34 @@ export interface PropertyFormValues {
 
 export type PropertyFormErrors = Partial<Record<keyof PropertyFormValues, string>>;
 
+/** Черновик «добавляю тип»: открытая форма нового типа и введённое имя. */
+export interface PropertyTypeDraft {
+  addingType: boolean;
+  typeName: string;
+}
+
+const FORM_VALUE_KEYS: readonly (keyof PropertyFormValues)[] = [
+  'label',
+  'typeId',
+  'address',
+  'areaM2',
+  'sharePercent',
+];
+
+/**
+ * Guard несохранённых изменений (S-05): сравниваем текущее состояние формы со
+ * снимком при открытии. Открытая форма нового типа и введённое имя типа — такие
+ * же изменения, как правка полей. Чистая функция, чтобы покрыть тестом.
+ */
+export function isPropertyFormDirty(
+  initial: PropertyFormValues,
+  current: PropertyFormValues,
+  typeDraft: PropertyTypeDraft,
+): boolean {
+  if (FORM_VALUE_KEYS.some((key) => initial[key] !== current[key])) return true;
+  return typeDraft.addingType || typeDraft.typeName.trim() !== '';
+}
+
 export interface ParsedPropertyForm {
   label: string;
   typeId: string;

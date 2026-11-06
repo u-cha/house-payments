@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { PropertyDto, PropertyTypeDto } from '../../shared/ipc';
 import { ErrorBanner } from '../components';
 import { Icon } from '../icons';
@@ -14,6 +14,7 @@ import {
 import {
   emptyPropertyForm,
   formValuesFromProperty,
+  isPropertyFormDirty,
   TYPE_NAME_MAX,
   validatePropertyForm,
   type PropertyFormErrors,
@@ -33,14 +34,18 @@ export interface PropertyFormProps {
  * на клиенте для подсказок, окончательно их проверяет main.
  */
 export function PropertyForm({ sessionId, types, property, onClose }: PropertyFormProps) {
-  const [values, setValues] = useState<PropertyFormValues>(() =>
+  // Снимок состояния на момент открытия: guard сравнивает с ним текущие значения.
+  const [initialValues] = useState<PropertyFormValues>(() =>
     property ? formValuesFromProperty(property) : emptyPropertyForm(types[0]?.id ?? ''),
   );
+  const [values, setValues] = useState<PropertyFormValues>(initialValues);
   const [errors, setErrors] = useState<PropertyFormErrors>({});
   const [addingType, setAddingType] = useState(false);
   const [typeName, setTypeName] = useState('');
   const [typeError, setTypeError] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
 
   const createProperty = useCreateProperty(sessionId);
   const updateProperty = useUpdateProperty(sessionId);
@@ -54,18 +59,56 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
   const actionError = archive.error ?? restore.error;
   const title = property === undefined ? 'Новый объект' : property.label;
 
+  const dirty = useMemo(
+    () => isPropertyFormDirty(initialValues, values, { addingType, typeName }),
+    [addingType, initialValues, typeName, values],
+  );
+
+  /** Закрытие по инициативе пользователя: при изменениях сначала спрашиваем. */
+  const requestClose = () => {
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    setConfirmArchive(false);
+    setConfirmDiscard(true);
+  };
+
+  const focusFormStart = () => {
+    document.getElementById('property-label')?.focus();
+  };
+
+  /** «Продолжить редактирование»: закрыть подтверждение и вернуть фокус в форму. */
+  const keepEditing = () => {
+    setConfirmDiscard(false);
+    focusFormStart();
+  };
+
+  useEffect(() => {
+    if (confirmDiscard) keepEditingRef.current?.focus();
+  }, [confirmDiscard]);
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || saving || event.defaultPrevented) return;
+      if (confirmDiscard) {
+        keepEditing();
+        return;
+      }
       if (confirmArchive) {
         setConfirmArchive(false);
+        return;
+      }
+      if (dirty) {
+        setConfirmArchive(false);
+        setConfirmDiscard(true);
         return;
       }
       onClose();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [confirmArchive, onClose, saving]);
+  }, [confirmArchive, confirmDiscard, dirty, onClose, saving]);
 
   const field = (name: keyof PropertyFormValues) => ({
     id: `property-${name}`,
@@ -139,7 +182,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
   return (
     <section aria-labelledby="property-form-title">
       <div className="crumbs">
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={requestClose}>
           Объекты
         </button>
         <span className="sep">/</span>
@@ -281,7 +324,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
 
         {readOnly ? (
           <div className="form-actions">
-            <button type="button" className="btn ghost" onClick={onClose}>
+            <button type="button" className="btn ghost" onClick={requestClose}>
               Закрыть
             </button>
             <button
@@ -306,7 +349,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
                 <Icon name="archive" />В архив
               </button>
             )}
-            <button type="button" className="btn ghost" onClick={onClose} disabled={saving}>
+            <button type="button" className="btn ghost" onClick={requestClose} disabled={saving}>
               Отмена
             </button>
             <button type="submit" className="btn" disabled={saving} aria-busy={saving}>
@@ -332,6 +375,24 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
             >
               <Icon name="archive" />
               {archive.isPending ? 'Архивация…' : 'В архив'}
+            </button>
+          </div>
+        ) : null}
+
+        {confirmDiscard ? (
+          <div
+            className="inline-confirm"
+            role="group"
+            aria-label="Подтверждение выхода без сохранения"
+          >
+            <span className="grow" role="status">
+              Изменения не сохранены.
+            </span>
+            <button type="button" className="btn ghost" ref={keepEditingRef} onClick={keepEditing}>
+              Продолжить редактирование
+            </button>
+            <button type="button" className="btn danger" onClick={onClose}>
+              Выйти без сохранения
             </button>
           </div>
         ) : null}
