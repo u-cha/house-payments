@@ -17,6 +17,12 @@ files:
 
 asar: true
 
+# Нативные зависимости (better-sqlite3, @node-rs/argon2) — N-API: их prebuilt
+# бинарники ABI-совместимы с Electron, пересборка через node-gyp не нужна.
+# Отключаем её, чтобы сборка каждой итерации (ADR-0019) не зависела от сети и
+# записи в ~/.electron-gyp.
+npmRebuild: false
+
 # Кэш скачанного Electron — внутри репозитория (каталог в .gitignore), чтобы
 # сборка не зависела от ~/Library/Caches и работала в изолированных средах.
 electronDownload:
