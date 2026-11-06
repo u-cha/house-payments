@@ -164,11 +164,28 @@ pnpm ci:status --json           # машинный вывод
 ### Черновая `.dmg` для macOS (без подписи)
 
 Пока сертификатов нет (R-04), macOS-сборка — неподписанный черновик для
-локальной проверки:
+локальной проверки. Это же — артефакт каждой итерации с кодом: правило и
+границы — [ADR-0019](docs/design/architecture/adr/0019-iteration-artifact-and-link.md).
 
 ```bash
-pnpm dist:mac          # arm64 .dmg в release/ (единственный каталог, ADR-0018)
-open release/house-payments-*-arm64.dmg
+pnpm dist:mac          # .dmg в release/ (единственный каталог, ADR-0018)
+```
+
+Сборка заканчивается печатью артефакта и относительной ссылки:
+
+```
+Артефакт: <repo>/release/house-payments-mac-arm64-latest.dmg
+Ссылка: release/house-payments-mac-arm64-latest.dmg
+```
+
+Имя без версии: ссылка не меняется от сборки к сборке, новая сборка перезаписывает
+файл. В отчёте по задаче ссылка на артефакт обязательна — «собрано» без ссылки
+сдачей не считается (ADR-0019).
+
+Открыть и установить:
+
+```bash
+open release/house-payments-mac-arm64-latest.dmg
 ```
 
 Перетащите `house-payments.app` в `/Applications` и запустите. Сборка не

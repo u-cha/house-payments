@@ -35,4 +35,6 @@ mac:
   notarize: false
 
 dmg:
-  artifactName: house-payments-${version}-${arch}.${ext}
+  # ADR-0019: имя без версии — ссылка на артефакт одна и та же на каждой
+  # итерации. Путь и имя закреплены тестом tests/artifact-path.test.mjs.
+  artifactName: house-payments-mac-arm64-latest.${ext}

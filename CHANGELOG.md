@@ -20,6 +20,9 @@
 - Правило «свежий `main` перед пушем»: команда `pnpm sync:main` (fetch + merge
   `origin/main`), `pre-push`-хук и требование актуальной ветки в ruleset;
   смысловой конфликт выносится пользователю ([ADR-0017](docs/design/architecture/adr/0017-sync-main-before-push.md)).
+- Правило итерации: каждая задача с изменениями кода завершается пересборкой
+  приложения и ссылкой на артефакт в отчёте; артефакт лежит в известном месте
+  `release/house-payments-mac-arm64-latest.dmg` ([ADR-0019](docs/design/architecture/adr/0019-iteration-artifact-and-link.md)).
 
 ### Changed
 
@@ -29,6 +32,8 @@
 - Репозиторий переведён в публичный, на `main` включены форсируемые rulesets
   (PR, линейная история, запрет force-push и удаления), на теги `v*` — запрет
   удаления и перемещения ([ADR-0014](docs/design/architecture/adr/0014-public-repo-and-enforced-rules.md)).
+- macOS-сборка переименована в стабильное `release/house-payments-mac-arm64-latest.dmg`
+  без версии в имени; `pnpm dist:mac` печатает путь и ссылку на артефакт.
 
 ## [0.1.0] — не выпущено (веха M0)
 
