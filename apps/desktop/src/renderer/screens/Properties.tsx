@@ -205,6 +205,12 @@ export function Properties() {
                 <button
                   type="button"
                   className="ghost"
+                  disabled={status === 'archived'}
+                  title={
+                    status === 'archived'
+                      ? 'Верните объект в активные, чтобы изменить параметры'
+                      : undefined
+                  }
                   onClick={() => setForm({ mode: 'edit', property })}
                 >
                   Изменить
@@ -215,7 +221,7 @@ export function Properties() {
                   disabled={pendingId === property.id}
                   onClick={() => void runAction(property)}
                 >
-                  {status === 'active' ? 'В архив' : 'Вернуть'}
+                  {status === 'active' ? 'В архив' : 'Вернуть в активные'}
                 </button>
               </div>
             </li>
