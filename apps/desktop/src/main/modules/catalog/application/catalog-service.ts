@@ -254,6 +254,16 @@ export function createCatalogService(
     updateProperty(actor, input) {
       return withTransaction(db, () => {
         const current = requireProperty(input.id);
+        // Параметры архивного объекта меняются только после возврата в активные:
+        // иначе объект «оживает» в истории незаметно для списка.
+        if (current.status === 'archived') {
+          throw new AppError({
+            code: 'BUSINESS_RULE',
+            message: 'Верните объект в активные, чтобы изменить его параметры',
+            details: { reason: 'PROPERTY_ARCHIVED' },
+            retryable: false,
+          });
+        }
         const next: Property = {
           ...current,
           typeId:

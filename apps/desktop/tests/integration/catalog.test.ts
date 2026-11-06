@@ -196,6 +196,26 @@ describe('объекты: создание, чтение, правка и арх
     expect(db.prepare('SELECT COUNT(*) FROM property').pluck().get()).toBe(1);
   });
 
+  it('не даёт менять параметры архивного объекта до возврата в активные', () => {
+    const property = catalog.createProperty(ACTOR, {
+      typeId: typeId('Квартира'),
+      label: 'Карабайка 36',
+      address: 'Карабайка, 36',
+    });
+    catalog.archiveProperty(ACTOR, property.id);
+
+    const error = captureError(() =>
+      catalog.updateProperty(ACTOR, { id: property.id, label: 'Новое название' }),
+    );
+    expect(error.code).toBe('BUSINESS_RULE');
+    expect(error.details).toMatchObject({ reason: 'PROPERTY_ARCHIVED' });
+
+    catalog.restoreProperty(ACTOR, property.id);
+    expect(
+      catalog.updateProperty(ACTOR, { id: property.id, label: 'Новое название' }),
+    ).toMatchObject({ label: 'Новое название' });
+  });
+
   it('переживает переоткрытие файла данных', () => {
     const property = catalog.createProperty(ACTOR, {
       typeId: typeId('Машиноместо'),
