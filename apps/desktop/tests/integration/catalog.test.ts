@@ -108,11 +108,16 @@ describe('справочник типов объектов', () => {
       catalog.listPropertyTypes({ includeArchived: true }).find((type) => type.id === custom.id),
     ).toMatchObject({ isActive: false });
 
-    const duplicate = captureError(() => catalog.createPropertyType({ name: 'Квартира' }));
-    expect(duplicate.code).toBe('CONFLICT');
+    // Регистр не важен: «квартира» и «КВАРТИРА» — тот же тип, что встроенная «Квартира».
+    for (const name of ['Квартира', 'квартира', 'КВАРТИРА']) {
+      expect(captureError(() => catalog.createPropertyType({ name })).code).toBe('CONFLICT');
+    }
     expect(captureError(() => catalog.createPropertyType({ name: '   ' })).code).toBe(
       'VALIDATION_FAILED',
     );
+    expect(
+      captureError(() => catalog.updatePropertyType({ id: typeId('Квартира'), name: 'ДОМ' })).code,
+    ).toBe('CONFLICT');
   });
 });
 

@@ -22,6 +22,11 @@ export interface PropertyType {
   createdAt: string;
 }
 
+/** Ключ уникальности типа: регистр не различается, кириллица приводится JS. */
+export function normalizeTypeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 export const MAX_LABEL_LENGTH = 120;
 export const MAX_ADDRESS_LENGTH = 300;
 export const MAX_NOTE_LENGTH = 2000;

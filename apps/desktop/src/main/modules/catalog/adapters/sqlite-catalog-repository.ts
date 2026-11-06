@@ -1,5 +1,10 @@
 import type { AppDatabase } from '../../../infrastructure/db/connection.js';
-import type { Property, PropertyStatus, PropertyType } from '../domain/property.js';
+import {
+  normalizeTypeName,
+  type Property,
+  type PropertyStatus,
+  type PropertyType,
+} from '../domain/property.js';
 import type {
   CatalogRepository,
   PropertyFilter,
@@ -129,15 +134,25 @@ export class SqliteCatalogRepository implements CatalogRepository {
   insertPropertyType(type: PropertyType): void {
     this.db
       .prepare(
-        'INSERT INTO property_type (id, name, sort_order, is_active, created_at) VALUES (?, ?, ?, ?, ?)',
+        `INSERT INTO property_type (id, name, name_key, sort_order, is_active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(type.id, type.name, type.sortOrder, type.isActive ? 1 : 0, type.createdAt);
+      .run(
+        type.id,
+        type.name,
+        normalizeTypeName(type.name),
+        type.sortOrder,
+        type.isActive ? 1 : 0,
+        type.createdAt,
+      );
   }
 
   updatePropertyType(type: PropertyType): void {
     this.db
-      .prepare('UPDATE property_type SET name = ?, sort_order = ?, is_active = ? WHERE id = ?')
-      .run(type.name, type.sortOrder, type.isActive ? 1 : 0, type.id);
+      .prepare(
+        'UPDATE property_type SET name = ?, name_key = ?, sort_order = ?, is_active = ? WHERE id = ?',
+      )
+      .run(type.name, normalizeTypeName(type.name), type.sortOrder, type.isActive ? 1 : 0, type.id);
   }
 
   findPropertyType(id: string): PropertyTypeRecord | undefined {
@@ -149,8 +164,10 @@ export class SqliteCatalogRepository implements CatalogRepository {
   findPropertyTypeByName(name: string, excludeId?: string): PropertyTypeRecord | undefined {
     const row =
       excludeId === undefined
-        ? this.db.prepare(`${SELECT_TYPE} WHERE name = ?`).get(name)
-        : this.db.prepare(`${SELECT_TYPE} WHERE name = ? AND id <> ?`).get(name, excludeId);
+        ? this.db.prepare(`${SELECT_TYPE} WHERE name_key = ?`).get(normalizeTypeName(name))
+        : this.db
+            .prepare(`${SELECT_TYPE} WHERE name_key = ? AND id <> ?`)
+            .get(normalizeTypeName(name), excludeId);
     return row === undefined ? undefined : toType(row as PropertyTypeRow);
   }
 
