@@ -44,7 +44,9 @@ describe('smoke: запуск, вход, создание объекта', () =>
     await page.getByRole('button', { name: 'Войти' }).click();
 
     await page.getByRole('button', { name: 'Объекты' }).click();
-    await page.getByRole('button', { name: 'Добавить объект' }).click();
+    // В пустом реестре «Добавить объект» есть и в шапке, и в empty-state:
+    // data-атрибут есть только у кнопки шапки.
+    await page.locator('[data-add-property]').click();
     await page.getByLabel('Название').fill('Карабайка 36, кв. 12');
     await page.getByLabel('Адрес').fill('Карабайка, 36');
     await page.getByRole('button', { name: 'Создать объект' }).click();
