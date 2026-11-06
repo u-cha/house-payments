@@ -30,7 +30,7 @@ docs/design/
   brief.md                 границы, требования FR, критерии AC, допущения, OQ
   traceability.md          FR → модуль → сущность → инвариант → ADR → UX → проверка
   roadmap.md               вехи M0–M5, гейты V0–V3, эпики E-01…E-15, порядок M0, зависимости, DoD
-  risks.md                 R-01…R-10, решения и условия пересмотра
+  risks.md                 R-01…R-10 и журнал рисков итераций §8
   domain/
     glossary.md            канонические термины
     entities.md            сущности и агрегаты, состояния, владельцы
@@ -44,7 +44,7 @@ docs/design/
     context.mmd            C4 L1 — приложение и внешние участники
     containers.mmd         C4 L2 — Electron, SQLite, системное хранилище
     components.mmd         C4 L3 — модули ядра
-    adr/                   журнал решений ADR-0001…0019
+    adr/                   журнал решений ADR-0001…0021
   review/
     consistency-2026-11-04.md  ревью консистентности и принятые решения
   ux/
