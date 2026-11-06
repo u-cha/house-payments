@@ -30,7 +30,7 @@ jobs:
   check:
     # Имя job = контекст обязательной проверки в ruleset protect-main (ADR-0015).
     name: check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
