@@ -1,12 +1,20 @@
 import type {
   AuthStatusResult,
   CreateOwnerInput,
+  CreatePropertyInput,
+  CreatePropertyTypeInput,
   IpcErrorCode,
   IpcErrorShape,
   IpcResult,
+  ListPropertiesInput,
+  ListPropertyTypesInput,
   LoginInput,
   ProfileDto,
+  PropertyDto,
+  PropertyTypeDto,
   SessionDto,
+  UpdatePropertyInput,
+  UpdatePropertyTypeInput,
 } from '../shared/ipc';
 
 /** Ошибка main-процесса в renderer: поля AppError сохранены (core-modules §6). */
@@ -45,6 +53,32 @@ export const api = {
   logout: (sessionId: string): Promise<null> => unwrap(window.api.logout(sessionId)),
   /** Полный выход: main завершает процесс, возврата на экран входа нет. */
   quit: (): void => window.api.quit(),
+
+  // Команды каталога выполняются в контексте сессии: sessionId обязателен.
+  listPropertyTypes: (
+    sessionId: string,
+    input?: ListPropertyTypesInput,
+  ): Promise<PropertyTypeDto[]> => unwrap(window.api.listPropertyTypes(sessionId, input)),
+  createPropertyType: (
+    sessionId: string,
+    input: CreatePropertyTypeInput,
+  ): Promise<PropertyTypeDto> => unwrap(window.api.createPropertyType(sessionId, input)),
+  updatePropertyType: (
+    sessionId: string,
+    input: UpdatePropertyTypeInput,
+  ): Promise<PropertyTypeDto> => unwrap(window.api.updatePropertyType(sessionId, input)),
+  createProperty: (sessionId: string, input: CreatePropertyInput): Promise<PropertyDto> =>
+    unwrap(window.api.createProperty(sessionId, input)),
+  updateProperty: (sessionId: string, input: UpdatePropertyInput): Promise<PropertyDto> =>
+    unwrap(window.api.updateProperty(sessionId, input)),
+  archiveProperty: (sessionId: string, id: string): Promise<PropertyDto> =>
+    unwrap(window.api.archiveProperty(sessionId, id)),
+  restoreProperty: (sessionId: string, id: string): Promise<PropertyDto> =>
+    unwrap(window.api.restoreProperty(sessionId, id)),
+  getProperty: (sessionId: string, id: string): Promise<PropertyDto> =>
+    unwrap(window.api.getProperty(sessionId, id)),
+  listProperties: (sessionId: string, input?: ListPropertiesInput): Promise<PropertyDto[]> =>
+    unwrap(window.api.listProperties(sessionId, input)),
 };
 
 export function toUiError(error: unknown): UiError {
