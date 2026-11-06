@@ -43,12 +43,13 @@ Table setting {
 
 Table property_type {
   id text [pk]
-  name text [not null, unique]
+  name text [not null]
+  name_key text [not null, unique]
   sort_order integer [not null, default: 100]
   is_active boolean [not null, default: true]
   created_at text [not null]
 
-  Note: 'Редактируемый справочник типов: квартира, дом, машиноместо, земельный участок; пользователь добавляет и переименовывает.'
+  Note: 'Редактируемый справочник типов: name_key хранит название в нижнем регистре, поэтому «Квартира» и «квартира» — один тип.'
 }
 
 Table property {
