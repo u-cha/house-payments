@@ -1,11 +1,11 @@
-import { app, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { APP_QUIT_CHANNEL } from '../../shared/ipc.js';
 
 /**
- * «Выйти» завершает приложение целиком (ADR-0006: сессия живёт в памяти
- * процесса), а не оставляет окно и иконку в доке. `app.quit()` закрывает
- * окна, вызывает `will-quit` и корректно закрывает файл данных.
+ * «Выйти» в UI идёт в тот же контроллер, что и красный крест окна: сначала
+ * подтверждение, потом app.quit(). Так приложение не остаётся в доке и не
+ * закрывается без согласия пользователя.
  */
-export function registerApp(): void {
-  ipcMain.on(APP_QUIT_CHANNEL, () => app.quit());
+export function registerApp(requestQuit: () => void): void {
+  ipcMain.on(APP_QUIT_CHANNEL, () => requestQuit());
 }
