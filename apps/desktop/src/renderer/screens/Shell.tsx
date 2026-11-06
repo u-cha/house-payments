@@ -14,7 +14,7 @@ const PLACEHOLDER: Partial<Record<Section, string>> = {
 
 /** Каркас навигации после входа: разделы-заглушки из screens.md §1. */
 export function Shell() {
-  const { profile, logout } = useSession();
+  const { profile, quit } = useSession();
   const [section, setSection] = useState<Section>('Главная');
 
   return (
@@ -22,7 +22,7 @@ export function Shell() {
       <header className="topbar">
         <strong>house-payments</strong>
         <span className="muted">{profile?.name}</span>
-        <button type="button" className="ghost" onClick={() => void logout()}>
+        <button type="button" className="ghost" onClick={quit}>
           Выйти
         </button>
       </header>

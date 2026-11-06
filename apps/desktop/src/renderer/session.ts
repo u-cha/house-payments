@@ -13,7 +13,8 @@ interface SessionState {
   bootstrap(): Promise<void>;
   createOwner(name: string, password: string): Promise<void>;
   login(password: string): Promise<void>;
-  logout(): Promise<void>;
+  /** Выход = полное завершение приложения, а не экран входа. */
+  quit(): void;
   clearError(): void;
 }
 
@@ -21,7 +22,7 @@ interface SessionState {
  * Сессия renderer живёт только в памяти Zustand (ADR-0006): токен никуда не
  * сохраняется, после перезапуска bootstrap снова приведёт на экран входа.
  */
-export const useSession = create<SessionState>((set, get) => ({
+export const useSession = create<SessionState>((set) => ({
   phase: 'loading',
   profile: null,
   sessionId: null,
@@ -67,10 +68,8 @@ export const useSession = create<SessionState>((set, get) => ({
     }
   },
 
-  async logout() {
-    const { sessionId } = get();
-    set({ profile: null, sessionId: null, phase: 'login', error: null });
-    if (sessionId !== null) await api.logout(sessionId).catch(() => undefined);
+  quit() {
+    api.quit();
   },
 
   clearError() {

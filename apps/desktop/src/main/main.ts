@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEventRecorder, openDataFile, type AppDatabase } from './infrastructure/db/index.js';
+import { registerApp } from './ipc/app.js';
 import { registerAuth } from './ipc/auth.js';
 import { registerPing } from './ipc/ping.js';
 import { InMemorySessionStore } from './modules/identity/index.js';
@@ -67,6 +68,7 @@ void app.whenReady().then(() => {
   const recorder = createEventRecorder(database, { deviceId: deviceIdFor(database) });
   const sessions = new InMemorySessionStore(systemClock);
   registerPing();
+  registerApp();
   registerAuth(database, { recorder }, sessions);
   createWindow();
   app.on('activate', () => {

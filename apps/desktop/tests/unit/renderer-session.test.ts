@@ -10,6 +10,7 @@ const mockApi = {
   createOwner: vi.fn(),
   login: vi.fn(),
   logout: vi.fn(),
+  quit: vi.fn(),
 };
 
 const unauthorized: IpcErrorShape = {
@@ -36,7 +37,7 @@ beforeEach(() => {
 });
 
 describe('renderer session store (Zustand)', () => {
-  it('first run → profile created → login → authenticated → logout', async () => {
+  it('first run → profile created → login → authenticated → quit closes the app', async () => {
     mockApi.authStatus.mockResolvedValue({ ok: true, data: { needsOwner: true, profile: null } });
     await useSession.getState().bootstrap();
     expect(useSession.getState().phase).toBe('first-run');
@@ -56,13 +57,9 @@ describe('renderer session store (Zustand)', () => {
       profile,
     });
 
-    await useSession.getState().logout();
-    expect(useSession.getState()).toMatchObject({
-      phase: 'login',
-      sessionId: null,
-      profile: null,
-    });
-    expect(mockApi.logout).toHaveBeenCalledWith('session-1');
+    // «Выйти» завершает процесс: состояние не сбрасывается на экран входа.
+    useSession.getState().quit();
+    expect(mockApi.quit).toHaveBeenCalledTimes(1);
   });
 
   it('shows AppError text and code, keeps the user on the login screen', async () => {

@@ -43,6 +43,8 @@ export const api = {
     unwrap(window.api.createOwner(input)),
   login: (input: LoginInput): Promise<SessionDto> => unwrap(window.api.login(input)),
   logout: (sessionId: string): Promise<null> => unwrap(window.api.logout(sessionId)),
+  /** Полный выход: main завершает процесс, возврата на экран входа нет. */
+  quit: (): void => window.api.quit(),
 };
 
 export function toUiError(error: unknown): UiError {

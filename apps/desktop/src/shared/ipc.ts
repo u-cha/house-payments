@@ -4,6 +4,7 @@ export const AUTH_STATUS_CHANNEL = 'auth:status';
 export const AUTH_CREATE_OWNER_CHANNEL = 'auth:create-owner';
 export const AUTH_LOGIN_CHANNEL = 'auth:login';
 export const AUTH_LOGOUT_CHANNEL = 'auth:logout';
+export const APP_QUIT_CHANNEL = 'app:quit';
 
 export interface PingResult {
   ok: true;
@@ -67,4 +68,6 @@ export interface HousePaymentsApi {
   createOwner(input: CreateOwnerInput): Promise<IpcResult<ProfileDto>>;
   login(input: LoginInput): Promise<IpcResult<SessionDto>>;
   logout(sessionId: string): Promise<IpcResult<null>>;
+  /** Полное завершение приложения: exit процесса, а не возврат на экран входа. */
+  quit(): void;
 }

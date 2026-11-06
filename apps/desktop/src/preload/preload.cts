@@ -19,6 +19,7 @@ const CHANNELS = {
   createOwner: 'auth:create-owner',
   login: 'auth:login',
   logout: 'auth:logout',
+  quit: 'app:quit',
 } as const;
 
 const invoke = <T,>(channel: string, payload?: unknown): Promise<T> =>
@@ -31,6 +32,10 @@ const api: HousePaymentsApi = {
     invoke<IpcResult<ProfileDto>>(CHANNELS.createOwner, input),
   login: (input: LoginInput) => invoke<IpcResult<SessionDto>>(CHANNELS.login, input),
   logout: (sessionId: string) => invoke<IpcResult<null>>(CHANNELS.logout, sessionId),
+  // Fire-and-forget: процесс завершится раньше, чем придёт ответ invoke.
+  quit: () => {
+    electron.ipcRenderer.send(CHANNELS.quit);
+  },
 };
 
 electron.contextBridge.exposeInMainWorld('api', api);
