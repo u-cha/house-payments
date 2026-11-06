@@ -184,6 +184,17 @@ export async function authenticate(
   return session;
 }
 
+/**
+ * Публичная часть единственного активного владельца — вход и первый запуск
+ * решают по ней, создан ли профиль (экран S-01/S-02).
+ */
+export function getOwnerProfile(db: AppDatabase): Profile | undefined {
+  const row = db
+    .prepare(`${SELECT_PROFILE} WHERE role = 'owner' AND is_active = 1 LIMIT 1`)
+    .get() as ProfileRow | undefined;
+  return row === undefined ? undefined : toProfile(row);
+}
+
 export function deactivateProfile(db: AppDatabase, profileId: string, deps: IdentityDeps): Profile {
   const row = requireProfile(db, profileId);
   assertNotLastOwner(db, row);

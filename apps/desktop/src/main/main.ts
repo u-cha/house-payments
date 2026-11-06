@@ -1,9 +1,13 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDataFile, type AppDatabase } from './infrastructure/db/index.js';
+import { createEventRecorder, openDataFile, type AppDatabase } from './infrastructure/db/index.js';
+import { registerAuth } from './ipc/auth.js';
 import { registerPing } from './ipc/ping.js';
+import { InMemorySessionStore } from './modules/identity/index.js';
 import { AppError } from './shared/index.js';
+import { systemClock } from './shared/clock.js';
+import { uuidv7 } from './shared/ids.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 // main собирается в dist/node/main, preload — в dist/node/preload/preload.cjs.
@@ -36,6 +40,20 @@ function createWindow(): void {
 
 let database: AppDatabase | undefined;
 
+/**
+ * Идентификатор устройства для `change_log` (ADR-0005): создаётся один раз и
+ * живёт в `setting`, чтобы записи одного устройства имели стабильный `device_id`.
+ */
+function deviceIdFor(db: AppDatabase): string {
+  const select = db.prepare("SELECT value FROM setting WHERE key = 'device_id'").pluck();
+  const existing = select.get() as string | undefined;
+  if (existing !== undefined) return existing;
+  db.prepare(
+    "INSERT OR IGNORE INTO setting (key, value, updated_at) VALUES ('device_id', ?, ?)",
+  ).run(uuidv7(), systemClock.now().toISOString());
+  return select.get() as string;
+}
+
 void app.whenReady().then(() => {
   try {
     // Файл в userData: создаётся при первом запуске, открывается при следующих.
@@ -46,7 +64,10 @@ void app.whenReady().then(() => {
     app.quit();
     return;
   }
+  const recorder = createEventRecorder(database, { deviceId: deviceIdFor(database) });
+  const sessions = new InMemorySessionStore(systemClock);
   registerPing();
+  registerAuth(database, { recorder }, sessions);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
