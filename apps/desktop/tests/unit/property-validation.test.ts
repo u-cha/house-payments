@@ -3,6 +3,7 @@ import type { PropertyDto } from '../../src/shared/ipc';
 import {
   emptyPropertyForm,
   formValuesFromProperty,
+  formatAreaDisplay,
   formatSharePercent,
   validatePropertyForm,
 } from '../../src/renderer/property-validation';
@@ -71,6 +72,14 @@ describe('клиентская валидация формы объекта', ()
     ).toBeDefined();
     expect(validatePropertyForm({ ...base, sharePercent: '' }).errors.sharePercent).toBeDefined();
     expect(validatePropertyForm({ ...base, label: 'x'.repeat(121) }).errors.label).toBeDefined();
+  });
+});
+
+describe('форматирование площади в реестре', () => {
+  it('разделяет разряды и сохраняет запятую для дробной части', () => {
+    expect(formatAreaDisplay(1200)).toBe('1\u00a0200');
+    expect(formatAreaDisplay(54.2)).toBe('54,2');
+    expect(formatAreaDisplay(null)).toBe('');
   });
 });
 

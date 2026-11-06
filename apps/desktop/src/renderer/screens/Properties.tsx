@@ -1,23 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { PropertyDto, PropertyStatus } from '../../shared/ipc';
 import { ErrorBanner } from '../components';
-import { IpcError, toUiError, type UiError } from '../api';
-import {
-  useArchiveProperty,
-  useProperties,
-  usePropertyTypes,
-  useRestoreProperty,
-} from '../catalog';
+import { IpcError, toUiError } from '../api';
+import { useProperties, usePropertyTypes } from '../catalog';
 import { useSession } from '../session';
 import { PropertyForm } from './PropertyForm';
-import { formatArea, formatSharePercent } from '../property-validation';
+import { formatAreaDisplay, formatSharePercent } from '../property-validation';
 
-type FormState = { mode: 'create' } | { mode: 'edit'; property: PropertyDto };
+type View = { mode: 'list' } | { mode: 'create' } | { mode: 'edit'; property: PropertyDto };
 
 /**
- * S-04 «Объекты»: рабочий список и архив, поиск и фильтр по типу, действия
- * добавить/изменить/архивировать. Бизнес-правил нет — решение за main; экран
- * показывает результат и объясняет отказ (core-modules §3).
+ * S-04 «Объекты»: реестр объектов и архив, поиск и фильтр по типу. Бизнес-правил
+ * нет — решение за main; экран показывает результат и объясняет отказ
+ * (core-modules §3). Строка реестра открывает объект листом (S-05).
  */
 export function Properties() {
   const sessionId = useSession((state) => state.sessionId);
@@ -25,9 +20,8 @@ export function Properties() {
   const [status, setStatus] = useState<PropertyStatus>('active');
   const [typeFilter, setTypeFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState<FormState | null>(null);
-  const [actionError, setActionError] = useState<UiError | null>(null);
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [view, setView] = useState<View>({ mode: 'list' });
+  const [returnFocusId, setReturnFocusId] = useState<string | null>(null);
 
   const typesQuery = usePropertyTypes(sessionId);
   const propertiesQuery = useProperties(
@@ -35,18 +29,35 @@ export function Properties() {
     status,
     typeFilter === '' ? undefined : typeFilter,
   );
-  const archive = useArchiveProperty(sessionId);
-  const restore = useRestoreProperty(sessionId);
 
   const queryError = typesQuery.error ?? propertiesQuery.error;
-  const unauthorized =
-    isUnauthenticated(queryError) ||
-    isUnauthenticated(archive.error) ||
-    isUnauthenticated(restore.error);
+  const unauthorized = isUnauthenticated(queryError);
 
   useEffect(() => {
     if (unauthorized) expireSession('Сессия истекла: войдите снова');
   }, [unauthorized, expireSession]);
+
+  // Возврат фокуса на строку (или кнопку добавления), которая открыла лист:
+  // список размонтируется, поэтому ищем цель по data-атрибуту после рендера.
+  useEffect(() => {
+    if (view.mode !== 'list' || returnFocusId === null) return;
+    const selector =
+      returnFocusId === 'new' ? '[data-add-property]' : `[data-property-id="${returnFocusId}"]`;
+    document.querySelector<HTMLElement>(selector)?.focus();
+    setReturnFocusId(null);
+  }, [view.mode, returnFocusId]);
+
+  const openCreate = (): void => {
+    setReturnFocusId('new');
+    setView({ mode: 'create' });
+  };
+
+  const openEdit = (property: PropertyDto): void => {
+    setReturnFocusId(property.id);
+    setView({ mode: 'edit', property });
+  };
+
+  const closeForm = (): void => setView({ mode: 'list' });
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -63,71 +74,72 @@ export function Properties() {
   const filtered = typeFilter !== '' || search.trim() !== '';
   const loading = typesQuery.isLoading || propertiesQuery.isLoading;
 
-  const runAction = async (property: PropertyDto) => {
-    setActionError(null);
-    setPendingId(property.id);
-    try {
-      if (status === 'active') {
-        if (!window.confirm(`Архивировать «${property.label}»?`)) return;
-        await archive.mutateAsync(property.id);
-      } else {
-        await restore.mutateAsync(property.id);
-      }
-    } catch (error) {
-      setActionError(toUiError(error));
-    } finally {
-      setPendingId(null);
-    }
-  };
-
   if (sessionId === null) return null;
+
+  if (view.mode !== 'list') {
+    return (
+      <PropertyForm
+        key={view.mode === 'edit' ? view.property.id : 'new'}
+        sessionId={sessionId}
+        types={types}
+        property={view.mode === 'edit' ? view.property : undefined}
+        onClose={closeForm}
+      />
+    );
+  }
 
   return (
     <section aria-labelledby="properties-title">
       <div className="page-head">
-        <div>
+        <div className="grow">
           <h1 id="properties-title">Объекты</h1>
-          <p className="muted">Квартиры, дома, машиноместа и участки, которыми вы владеете.</p>
+          <p>Квартиры, дома, машиноместа и участки, которыми вы владеете.</p>
         </div>
         <button
           type="button"
+          className="btn"
           disabled={types.length === 0}
-          onClick={() => setForm({ mode: 'create' })}
+          data-add-property
+          onClick={openCreate}
         >
           Добавить объект
         </button>
       </div>
+      <div className="doublerule" />
 
       <div className="toolbar">
-        <div className="field">
-          <label htmlFor="properties-search">Поиск</label>
-          <input
-            id="properties-search"
-            type="search"
-            placeholder="Название или адрес"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="properties-type-filter">Тип</label>
-          <select
-            id="properties-type-filter"
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value)}
-          >
-            <option value="">Все типы</option>
-            {types.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="tabs" role="group" aria-label="Статус объектов">
+        <label className="visually-hidden" htmlFor="properties-search">
+          Поиск по объектам
+        </label>
+        <input
+          id="properties-search"
+          name="search"
+          className="input input-search"
+          type="search"
+          placeholder="Название или адрес"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <label className="visually-hidden" htmlFor="properties-type-filter">
+          Тип объекта
+        </label>
+        <select
+          id="properties-type-filter"
+          name="typeFilter"
+          className="select"
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value)}
+        >
+          <option value="">Все типы</option>
+          {types.map((type) => (
+            <option key={type.id} value={type.id}>
+              {type.name}
+            </option>
+          ))}
+        </select>
+        <div className="segmented" role="group" aria-label="Статус объектов">
           <button
             type="button"
-            className={status === 'active' ? 'nav-item active' : 'nav-item'}
             aria-pressed={status === 'active'}
             onClick={() => setStatus('active')}
           >
@@ -135,7 +147,6 @@ export function Properties() {
           </button>
           <button
             type="button"
-            className={status === 'archived' ? 'nav-item active' : 'nav-item'}
             aria-pressed={status === 'archived'}
             onClick={() => setStatus('archived')}
           >
@@ -145,11 +156,10 @@ export function Properties() {
       </div>
 
       <ErrorBanner error={queryError === null ? null : toUiError(queryError)} />
-      <ErrorBanner error={actionError} />
       {queryError === null ? null : (
         <button
           type="button"
-          className="ghost"
+          className="btn ghost retry"
           onClick={() => {
             void typesQuery.refetch();
             void propertiesQuery.refetch();
@@ -159,24 +169,13 @@ export function Properties() {
         </button>
       )}
 
-      {form === null ? null : (
-        <PropertyForm
-          key={form.mode === 'edit' ? form.property.id : 'new'}
-          sessionId={sessionId}
-          types={types}
-          property={form.mode === 'edit' ? form.property : undefined}
-          onCancel={() => setForm(null)}
-          onSaved={() => setForm(null)}
-        />
-      )}
-
-      {loading ? <p className="muted">Загрузка…</p> : null}
+      {loading ? <LedgerSkeleton /> : null}
 
       {!loading && queryError === null && visible.length === 0 ? (
         <EmptyState
           status={status}
           filtered={filtered}
-          onAdd={() => setForm({ mode: 'create' })}
+          onAdd={openCreate}
           addDisabled={types.length === 0}
           onReset={() => {
             setSearch('');
@@ -185,51 +184,60 @@ export function Properties() {
         />
       ) : null}
 
-      {visible.length > 0 ? (
-        <ul className="property-list">
-          {visible.map((property) => (
-            <li key={property.id} className="property-row">
-              <div className="property-main">
-                <strong>{property.label}</strong>
-                <span className="badge">{property.typeName}</span>
-                <span className="muted">{property.address}</span>
-                <span className="muted">
-                  {property.areaM2 === null
-                    ? 'Площадь не указана'
-                    : `${formatArea(property.areaM2)} м²`}
-                  {' · '}
-                  доля {formatSharePercent(property.shareBp)}%
-                </span>
-              </div>
-              <div className="actions">
+      {!loading && visible.length > 0 ? (
+        <>
+          <div className="ledger-head" aria-hidden="true">
+            <span>Название</span>
+            <span>Тип</span>
+            <span>Адрес</span>
+            <span className="num">Площадь</span>
+            <span className="num">Доля</span>
+          </div>
+          <ul className="ledger">
+            {visible.map((property) => (
+              <li key={property.id}>
                 <button
                   type="button"
-                  className="ghost"
-                  disabled={status === 'archived'}
-                  title={
-                    status === 'archived'
-                      ? 'Верните объект в активные, чтобы изменить параметры'
-                      : undefined
-                  }
-                  onClick={() => setForm({ mode: 'edit', property })}
+                  className="ledger-row"
+                  data-property-id={property.id}
+                  aria-label={`${property.label}, ${property.typeName}, ${property.address}, площадь ${
+                    property.areaM2 === null
+                      ? 'не указана'
+                      : `${formatAreaDisplay(property.areaM2)}\u00A0м²`
+                  }, доля ${formatSharePercent(property.shareBp)}%`}
+                  onClick={() => openEdit(property)}
                 >
-                  Изменить
+                  <span className="name">{property.label}</span>
+                  <span className="type">{property.typeName}</span>
+                  <span className="address">{property.address}</span>
+                  <span className="num">
+                    {property.areaM2 === null
+                      ? '—'
+                      : `${formatAreaDisplay(property.areaM2)}\u00A0м²`}
+                  </span>
+                  <span className="num">{formatSharePercent(property.shareBp)}%</span>
                 </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={pendingId === property.id}
-                  aria-busy={pendingId === property.id}
-                  onClick={() => void runAction(property)}
-                >
-                  {status === 'active' ? 'В архив' : 'Вернуть в активные'}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
     </section>
+  );
+}
+
+function LedgerSkeleton() {
+  return (
+    <div className="skeleton" role="status" aria-busy="true">
+      <span className="visually-hidden">Загрузка объектов…</span>
+      {[0, 1, 2].map((row) => (
+        <div className="skeleton-row" key={row} aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -254,8 +262,8 @@ function EmptyState({
     return (
       <div className="empty">
         <h2>Ничего не найдено</h2>
-        <p className="muted">Измените запрос или сбросьте фильтр по типу.</p>
-        <button type="button" className="ghost" onClick={onReset}>
+        <p>Измените запрос или сбросьте фильтр по типу.</p>
+        <button type="button" className="btn ghost" onClick={onReset}>
           Сбросить фильтры
         </button>
       </div>
@@ -265,15 +273,15 @@ function EmptyState({
     return (
       <div className="empty">
         <h2>Архив пуст</h2>
-        <p className="muted">Сюда попадают объекты, скрытые из рабочего списка.</p>
+        <p>Сюда попадают объекты, скрытые из рабочего списка.</p>
       </div>
     );
   }
   return (
     <div className="empty">
       <h2>Пока нет объектов</h2>
-      <p className="muted">Добавьте первый объект — квартиру, дом, машиноместо или участок.</p>
-      <button type="button" onClick={onAdd} disabled={addDisabled}>
+      <p>Добавьте первый объект — квартиру, дом, машиноместо или участок.</p>
+      <button type="button" className="btn" onClick={onAdd} disabled={addDisabled}>
         Добавить объект
       </button>
     </div>

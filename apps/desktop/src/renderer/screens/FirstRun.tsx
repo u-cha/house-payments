@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ErrorBanner } from '../components';
+import { ErrorBanner, TitleBar } from '../components';
 import { useSession } from '../session';
 
 /** S-02: первый запуск — создание единственного профиля owner. */
@@ -20,47 +20,81 @@ export function FirstRun() {
   };
 
   return (
-    <main className="auth">
-      <h1>Первый запуск</h1>
-      <p className="muted">
-        Создайте профиль владельца — он нужен для входа и записи действий в аудит.
-      </p>
-      <form onSubmit={submit} noValidate>
-        <label htmlFor="owner-name">Имя профиля</label>
-        <input
-          id="owner-name"
-          value={name}
-          autoComplete="username"
-          onChange={(event) => setName(event.target.value)}
-        />
-        <label htmlFor="owner-password">Пароль</label>
-        <input
-          id="owner-password"
-          type="password"
-          value={password}
-          autoComplete="new-password"
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        <p className="hint">Не короче 8 символов.</p>
-        <label htmlFor="owner-confirmation">Повторите пароль</label>
-        <input
-          id="owner-confirmation"
-          type="password"
-          value={confirmation}
-          autoComplete="new-password"
-          onChange={(event) => setConfirmation(event.target.value)}
-        />
-        {localError === null ? (
-          <ErrorBanner error={error} />
-        ) : (
-          <p className="error" role="alert">
-            {localError}
-          </p>
-        )}
-        <button type="submit" disabled={busy} aria-busy={busy}>
-          {busy ? 'Создание…' : 'Создать профиль'}
-        </button>
-      </form>
-    </main>
+    <>
+      <TitleBar section="Первый запуск" />
+      <main className="screen auth-screen" id="main">
+        <div className="auth-layout">
+          <div className="auth-mast">
+            <div className="auth-word" translate="no">
+              house-
+              <br />
+              payments
+            </div>
+            <p className="auth-sub">Учёт платежей за жильё</p>
+            <div className="auth-rule" />
+            <p className="auth-lead">
+              Создайте профиль владельца — он нужен для входа и записи действий в аудит.
+            </p>
+            <p className="auth-note">
+              Один профиль на файл данных. Пароль не короче 8 символов и не восстанавливается.
+            </p>
+          </div>
+          <div className="auth-divider" aria-hidden="true" />
+          <div className="auth-form">
+            <h1>Первый запуск</h1>
+            <p className="auth-profile">Новый файл данных на этом компьютере</p>
+            <form onSubmit={submit} noValidate>
+              <div className="field">
+                <label htmlFor="owner-name">Имя профиля</label>
+                <input
+                  id="owner-name"
+                  name="profileName"
+                  value={name}
+                  autoComplete="username"
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="owner-password">Пароль</label>
+                <input
+                  id="owner-password"
+                  name="password"
+                  type="password"
+                  value={password}
+                  autoComplete="new-password"
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <p className="field-hint">Не короче 8 символов.</p>
+              </div>
+              <div className="field">
+                <label htmlFor="owner-confirmation">Повторите пароль</label>
+                <input
+                  id="owner-confirmation"
+                  name="passwordConfirmation"
+                  type="password"
+                  value={confirmation}
+                  autoComplete="new-password"
+                  onChange={(event) => setConfirmation(event.target.value)}
+                />
+              </div>
+              {localError === null ? (
+                <ErrorBanner error={error} />
+              ) : (
+                <p className="alert" role="alert">
+                  {localError}
+                </p>
+              )}
+              <button type="submit" className="btn" disabled={busy} aria-busy={busy}>
+                {busy ? 'Создание…' : 'Создать профиль'}
+              </button>
+            </form>
+          </div>
+        </div>
+        <div className="auth-foot">
+          <span>Файл данных создаётся автоматически</span>
+          <span>Сеть не требуется</span>
+        </div>
+      </main>
+    </>
   );
 }

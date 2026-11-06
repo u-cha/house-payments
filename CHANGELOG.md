@@ -29,6 +29,9 @@
 - Сессия и аудит catalog-команд: renderer передаёт `sessionId`, main отвечает
   `UNAUTHENTICATED` без активной сессии и пишет `audit_event` с `profileId`
   в одной транзакции с `change_log` (закрывает остаточные риски M0-10).
+- Визуальная система и редизайн M0-09/M0-11: токены и обе темы, реестр объектов,
+  лист формы, титульный вход, кастомный заголовок окна и восстановление размера
+  ([design-system.md](docs/design/ux/design-system.md), [ADR-0020](docs/design/architecture/adr/0020-window-chrome-and-state.md)).
 
 ### Fixed
 

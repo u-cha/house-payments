@@ -1,8 +1,14 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { PropertyDto, PropertyTypeDto } from '../../shared/ipc';
 import { ErrorBanner } from '../components';
 import { toUiError } from '../api';
-import { useCreateProperty, useCreatePropertyType, useUpdateProperty } from '../catalog';
+import {
+  useArchiveProperty,
+  useCreateProperty,
+  useCreatePropertyType,
+  useRestoreProperty,
+  useUpdateProperty,
+} from '../catalog';
 import {
   emptyPropertyForm,
   formValuesFromProperty,
@@ -16,15 +22,15 @@ export interface PropertyFormProps {
   sessionId: string;
   types: PropertyTypeDto[];
   property?: PropertyDto | undefined;
-  onCancel(): void;
-  onSaved(property: PropertyDto): void;
+  onClose(): void;
 }
 
 /**
- * S-05 в части формы: создание и редактирование объекта. Все ограничения
- * продублированы на клиенте для подсказок, окончательно их проверяет main.
+ * S-05 в части формы: создание, просмотр и правка объекта. Экран показывает
+ * лист поверх реестра, а не карточку над списком; все ограничения продублированы
+ * на клиенте для подсказок, окончательно их проверяет main.
  */
-export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: PropertyFormProps) {
+export function PropertyForm({ sessionId, types, property, onClose }: PropertyFormProps) {
   const [values, setValues] = useState<PropertyFormValues>(() =>
     property ? formValuesFromProperty(property) : emptyPropertyForm(types[0]?.id ?? ''),
   );
@@ -32,16 +38,38 @@ export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: 
   const [addingType, setAddingType] = useState(false);
   const [typeName, setTypeName] = useState('');
   const [typeError, setTypeError] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const createProperty = useCreateProperty(sessionId);
   const updateProperty = useUpdateProperty(sessionId);
   const createType = useCreatePropertyType(sessionId);
+  const archive = useArchiveProperty(sessionId);
+  const restore = useRestoreProperty(sessionId);
+
+  const readOnly = property?.status === 'archived';
   const saving = createProperty.isPending || updateProperty.isPending;
   const saveError = createProperty.error ?? updateProperty.error;
+  const actionError = archive.error ?? restore.error;
+  const title = property === undefined ? 'Новый объект' : property.label;
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || saving) return;
+      if (confirmArchive) {
+        setConfirmArchive(false);
+        return;
+      }
+      onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [confirmArchive, onClose, saving]);
 
   const field = (name: keyof PropertyFormValues) => ({
     id: `property-${name}`,
+    name,
     value: values[name],
+    disabled: readOnly === true,
     'aria-invalid': errors[name] !== undefined,
     'aria-describedby': errors[name] === undefined ? undefined : `property-${name}-error`,
     onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -70,53 +98,101 @@ export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: 
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (readOnly) return;
     const result = validatePropertyForm(values);
     setErrors(result.errors);
-    if (result.parsed === null) return;
+    if (result.parsed === null) {
+      const first = Object.keys(result.errors)[0];
+      if (first !== undefined) document.getElementById(`property-${first}`)?.focus();
+      return;
+    }
     const input = result.parsed;
     if (property === undefined) {
-      createProperty.mutate(input, { onSuccess: onSaved });
+      createProperty.mutate(input, { onSuccess: onClose });
     } else {
-      updateProperty.mutate({ id: property.id, ...input }, { onSuccess: onSaved });
+      updateProperty.mutate({ id: property.id, ...input }, { onSuccess: onClose });
+    }
+  };
+
+  const archiveNow = async () => {
+    if (property === undefined) return;
+    try {
+      await archive.mutateAsync(property.id);
+      onClose();
+    } catch {
+      setConfirmArchive(false);
+    }
+  };
+
+  const restoreNow = async () => {
+    if (property === undefined) return;
+    try {
+      await restore.mutateAsync(property.id);
+      onClose();
+    } catch {
+      // Текст ошибки показывает ErrorBanner из состояния мутации.
     }
   };
 
   return (
-    <section className="card property-form" aria-labelledby="property-form-title">
-      <h2 id="property-form-title">{property === undefined ? 'Новый объект' : 'Объект'}</h2>
-      <form onSubmit={submit} noValidate>
-        <label htmlFor="property-label">Название</label>
-        <input
-          {...field('label')}
-          type="text"
-          autoFocus
-          placeholder="Например, Карабайка 36, кв. 12"
-        />
-        <FieldError name="label" errors={errors} />
+    <section aria-labelledby="property-form-title">
+      <div className="crumbs">
+        <button type="button" onClick={onClose}>
+          Объекты
+        </button>
+        <span className="sep">/</span>
+        <span className="current">{title}</span>
+      </div>
+      <div className="sheet-head">
+        <h1 id="property-form-title">{title}</h1>
+      </div>
+      <div className="doublerule" />
 
-        <label htmlFor="property-typeId">Тип объекта</label>
-        <div className="type-row">
-          <select {...field('typeId')}>
-            {types.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="ghost plus"
-            aria-label="Добавить новый тип"
-            title="Добавить новый тип"
-            onClick={() => {
-              setAddingType((open) => !open);
-              setTypeError(null);
-            }}
-          >
-            +
-          </button>
+      <form className="form-sheet" onSubmit={submit} noValidate>
+        {readOnly ? (
+          <p className="form-status">
+            Объект в архиве: параметры только для чтения. Верните его в активные, чтобы изменить.
+          </p>
+        ) : null}
+
+        <div className="field">
+          <label htmlFor="property-label">Название</label>
+          <input
+            {...field('label')}
+            type="text"
+            autoFocus={readOnly !== true}
+            placeholder="Например, Карабайка 36, кв. 12"
+          />
+          <FieldError name="label" errors={errors} />
         </div>
-        <FieldError name="typeId" errors={errors} />
+
+        <div className="field">
+          <label htmlFor="property-typeId">Тип объекта</label>
+          <div className="type-row">
+            <select {...field('typeId')}>
+              {types.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+            {readOnly ? null : (
+              <button
+                type="button"
+                className="plus"
+                aria-label="Добавить новый тип"
+                title="Добавить новый тип"
+                onClick={() => {
+                  setAddingType((open) => !open);
+                  setTypeError(null);
+                }}
+              >
+                +
+              </button>
+            )}
+          </div>
+          <FieldError name="typeId" errors={errors} />
+        </div>
 
         {addingType ? (
           <div className="new-type" role="group" aria-label="Новый тип объекта">
@@ -131,18 +207,10 @@ export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: 
                 setTypeError(null);
               }}
             />
-            <div className="actions">
+            <div className="form-actions">
               <button
                 type="button"
-                onClick={() => void addType()}
-                disabled={createType.isPending}
-                aria-busy={createType.isPending}
-              >
-                {createType.isPending ? 'Добавление…' : 'Добавить тип'}
-              </button>
-              <button
-                type="button"
-                className="ghost"
+                className="btn ghost"
                 onClick={() => {
                   setAddingType(false);
                   setTypeName('');
@@ -151,37 +219,106 @@ export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: 
               >
                 Отмена
               </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void addType()}
+                disabled={createType.isPending}
+                aria-busy={createType.isPending}
+              >
+                {createType.isPending ? 'Добавление…' : 'Добавить тип'}
+              </button>
             </div>
             {typeError === null ? null : (
-              <p className="error" role="alert">
+              <p className="alert" role="alert">
                 {typeError}
               </p>
             )}
           </div>
         ) : null}
 
-        <label htmlFor="property-address">Адрес</label>
-        <input {...field('address')} type="text" placeholder="Например, Карабайка, 36" />
-        <FieldError name="address" errors={errors} />
+        <div className="field">
+          <label htmlFor="property-address">Адрес</label>
+          <input {...field('address')} type="text" placeholder="Например, Карабайка, 36" />
+          <FieldError name="address" errors={errors} />
+        </div>
 
-        <label htmlFor="property-areaM2">Площадь, м²</label>
-        <input {...field('areaM2')} type="text" inputMode="decimal" placeholder="Необязательно" />
-        <FieldError name="areaM2" errors={errors} />
-
-        <label htmlFor="property-sharePercent">Доля владения, %</label>
-        <input {...field('sharePercent')} type="text" inputMode="decimal" />
-        <p className="hint">От 0,01 до 100. 100% — объект целиком.</p>
-        <FieldError name="sharePercent" errors={errors} />
+        <div className="row2">
+          <div className="field">
+            <label htmlFor="property-areaM2">Площадь, м²</label>
+            <input
+              {...field('areaM2')}
+              type="text"
+              inputMode="decimal"
+              placeholder="Необязательно"
+            />
+            <FieldError name="areaM2" errors={errors} />
+          </div>
+          <div className="field">
+            <label htmlFor="property-sharePercent">Доля владения, %</label>
+            <input {...field('sharePercent')} type="text" inputMode="decimal" />
+            <p className="field-hint">От 0,01 до 100. 100% — объект целиком.</p>
+            <FieldError name="sharePercent" errors={errors} />
+          </div>
+        </div>
 
         <ErrorBanner error={saveError === null ? null : toUiError(saveError)} />
-        <div className="actions">
-          <button type="submit" disabled={saving} aria-busy={saving}>
-            {saving ? 'Сохранение…' : property === undefined ? 'Создать объект' : 'Сохранить'}
-          </button>
-          <button type="button" className="ghost" onClick={onCancel} disabled={saving}>
-            Отмена
-          </button>
-        </div>
+        <ErrorBanner error={actionError === null ? null : toUiError(actionError)} />
+
+        {readOnly ? (
+          <div className="form-actions">
+            <button type="button" className="btn ghost" onClick={onClose}>
+              Закрыть
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void restoreNow()}
+              disabled={restore.isPending}
+              aria-busy={restore.isPending}
+            >
+              {restore.isPending ? 'Возврат…' : 'Вернуть в активные'}
+            </button>
+          </div>
+        ) : (
+          <div className="form-actions">
+            {property === undefined ? null : (
+              <button
+                type="button"
+                className="btn danger start"
+                onClick={() => setConfirmArchive(true)}
+              >
+                В архив
+              </button>
+            )}
+            <button type="button" className="btn ghost" onClick={onClose} disabled={saving}>
+              Отмена
+            </button>
+            <button type="submit" className="btn" disabled={saving} aria-busy={saving}>
+              {saving ? 'Сохранение…' : property === undefined ? 'Создать объект' : 'Сохранить'}
+            </button>
+          </div>
+        )}
+
+        {confirmArchive ? (
+          <div className="inline-confirm" role="group" aria-label="Подтверждение архивации">
+            <span className="grow" role="status">
+              Объект уйдёт в архив и станет только для чтения.
+            </span>
+            <button type="button" className="btn ghost" onClick={() => setConfirmArchive(false)}>
+              Отмена
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => void archiveNow()}
+              disabled={archive.isPending}
+              aria-busy={archive.isPending}
+            >
+              {archive.isPending ? 'Архивация…' : 'В архив'}
+            </button>
+          </div>
+        ) : null}
       </form>
     </section>
   );
