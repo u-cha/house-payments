@@ -85,3 +85,12 @@ test('реальный risks.md проходит проверку', () => {
   const md = readFileSync(new URL('../docs/design/risks.md', import.meta.url), 'utf8');
   assert.deepEqual(validateRisks(md), []);
 });
+
+test('AGENTS.md содержит шлюз остаточных рисков', () => {
+  const md = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
+  assert.match(md, /^## 6\. Остаточные риски и решения пользователя/m);
+  assert.match(md, /waitingForHuman=true/);
+  assert.match(md, /«[Оо]тложить»[\s\S]{0,20}тоже решение/);
+  assert.match(md, /risks\.md/);
+  assert.match(md, /остаточных рисков нет/);
+});
