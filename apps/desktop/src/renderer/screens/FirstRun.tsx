@@ -57,7 +57,7 @@ export function FirstRun() {
             {localError}
           </p>
         )}
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} aria-busy={busy}>
           {busy ? 'Создание…' : 'Создать профиль'}
         </button>
       </form>

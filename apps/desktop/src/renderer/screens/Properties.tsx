@@ -219,6 +219,7 @@ export function Properties() {
                   type="button"
                   className="ghost"
                   disabled={pendingId === property.id}
+                  aria-busy={pendingId === property.id}
                   onClick={() => void runAction(property)}
                 >
                   {status === 'active' ? 'В архив' : 'Вернуть в активные'}

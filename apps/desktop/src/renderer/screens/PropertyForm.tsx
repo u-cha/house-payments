@@ -132,7 +132,12 @@ export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: 
               }}
             />
             <div className="actions">
-              <button type="button" onClick={() => void addType()} disabled={createType.isPending}>
+              <button
+                type="button"
+                onClick={() => void addType()}
+                disabled={createType.isPending}
+                aria-busy={createType.isPending}
+              >
                 {createType.isPending ? 'Добавление…' : 'Добавить тип'}
               </button>
               <button
@@ -170,7 +175,7 @@ export function PropertyForm({ sessionId, types, property, onCancel, onSaved }: 
 
         <ErrorBanner error={saveError === null ? null : toUiError(saveError)} />
         <div className="actions">
-          <button type="submit" disabled={saving}>
+          <button type="submit" disabled={saving} aria-busy={saving}>
             {saving ? 'Сохранение…' : property === undefined ? 'Создать объект' : 'Сохранить'}
           </button>
           <button type="button" className="ghost" onClick={onCancel} disabled={saving}>

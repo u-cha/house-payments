@@ -88,6 +88,11 @@ button {
 
 button:disabled {
   opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Курсор прогресса — только у кнопки, которая действительно выполняет действие. */
+button[aria-busy='true'] {
   cursor: progress;
 }
 
