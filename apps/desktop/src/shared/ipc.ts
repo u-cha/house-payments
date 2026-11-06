@@ -143,13 +143,24 @@ export interface HousePaymentsApi {
   /** Полное завершение приложения: exit процесса, а не возврат на экран входа. */
   quit(): void;
 
-  listPropertyTypes(input?: ListPropertyTypesInput): Promise<IpcResult<PropertyTypeDto[]>>;
-  createPropertyType(input: CreatePropertyTypeInput): Promise<IpcResult<PropertyTypeDto>>;
-  updatePropertyType(input: UpdatePropertyTypeInput): Promise<IpcResult<PropertyTypeDto>>;
-  createProperty(input: CreatePropertyInput): Promise<IpcResult<PropertyDto>>;
-  updateProperty(input: UpdatePropertyInput): Promise<IpcResult<PropertyDto>>;
-  archiveProperty(id: string): Promise<IpcResult<PropertyDto>>;
-  restoreProperty(id: string): Promise<IpcResult<PropertyDto>>;
-  getProperty(id: string): Promise<IpcResult<PropertyDto>>;
-  listProperties(input?: ListPropertiesInput): Promise<IpcResult<PropertyDto[]>>;
+  // Команды каталога выполняются только в контексте активной сессии (core-modules §3):
+  // renderer передаёт sessionId, main отвечает UNAUTHENTICATED без активной сессии.
+  listPropertyTypes(
+    sessionId: string,
+    input?: ListPropertyTypesInput,
+  ): Promise<IpcResult<PropertyTypeDto[]>>;
+  createPropertyType(
+    sessionId: string,
+    input: CreatePropertyTypeInput,
+  ): Promise<IpcResult<PropertyTypeDto>>;
+  updatePropertyType(
+    sessionId: string,
+    input: UpdatePropertyTypeInput,
+  ): Promise<IpcResult<PropertyTypeDto>>;
+  createProperty(sessionId: string, input: CreatePropertyInput): Promise<IpcResult<PropertyDto>>;
+  updateProperty(sessionId: string, input: UpdatePropertyInput): Promise<IpcResult<PropertyDto>>;
+  archiveProperty(sessionId: string, id: string): Promise<IpcResult<PropertyDto>>;
+  restoreProperty(sessionId: string, id: string): Promise<IpcResult<PropertyDto>>;
+  getProperty(sessionId: string, id: string): Promise<IpcResult<PropertyDto>>;
+  listProperties(sessionId: string, input?: ListPropertiesInput): Promise<IpcResult<PropertyDto[]>>;
 }

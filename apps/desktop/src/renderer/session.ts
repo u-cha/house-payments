@@ -15,6 +15,8 @@ interface SessionState {
   login(password: string): Promise<void>;
   /** Выход = полное завершение приложения, а не экран входа. */
   quit(): void;
+  /** main ответил UNAUTHENTICATED: возвращаемся на вход с объяснением. */
+  expireSession(message: string): void;
   clearError(): void;
 }
 
@@ -70,6 +72,16 @@ export const useSession = create<SessionState>((set) => ({
 
   quit() {
     api.quit();
+  },
+
+  expireSession(message) {
+    set({
+      phase: 'login',
+      profile: null,
+      sessionId: null,
+      busy: false,
+      error: { message, code: 'UNAUTHENTICATED' },
+    });
   },
 
   clearError() {

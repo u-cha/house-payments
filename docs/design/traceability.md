@@ -13,7 +13,7 @@
 
 | FR | Модуль | Таблицы | INV | ADR | UX | Эпик | Проверка |
 |---|---|---|---|---|---|---|---|
-| FR-01 | `catalog` | `property`, `property_type` | INV-12 | 0002 | US-02 | E-03 | `validate-docs` (refs, типы), интеграционный тест «объект переживает перезапуск; архив не удаляет историю» |
+| FR-01 | `catalog` | `property`, `property_type` | INV-12 | 0002 | US-02 | E-03 | `validate-docs` (refs, типы), интеграционный тест «объект переживает перезапуск; архив не удаляет историю», UI-тесты S-04 (поиск, фильтр, архив, валидация) |
 | FR-02 | `catalog` | `supplier` | — | — | US-02 | E-03 | `validate-docs` (refs), unit-тест дублей |
 | FR-03 | `catalog` | `account` | INV-12 | 0003 | US-02 | E-03 | тест «закрытие при долге запрещено» |
 | FR-04 | `catalog` | `service`, `tariff` | INV-01, INV-04 | 0002 | US-03 | E-03 | unit-тест выбора тарифа на дату, тест пересечения |
@@ -27,7 +27,7 @@
 | FR-12 | `documents` | `attachment` | INV-19 | 0008 | US-12 | E-10 | тест целостности по `sha256`, тест BLOB в файле данных |
 | FR-13 | `reporting` | read-model | INV-10 | 0001 | US-13 | E-09 | QS-01; тест сверки отчёта с балансом |
 | FR-14 | `identity` | `profile`, `setting` | INV-16 | 0006 | US-01 | E-02 | QS-05; тест входа и «последний owner» |
-| FR-15 | `identity` | `audit_event` | INV-17 | 0005 | US-14 | E-02, E-05 | QS-06; трансформационный тест «нет изменения без аудита» |
+| FR-15 | `identity` | `audit_event` | INV-17 | 0005 | US-14 | E-02, E-05 | QS-06; трансформационный тест «нет изменения без аудита»; аудит изменений объектов с `profileId` из сессии (`catalog.test.ts`) |
 | FR-16 | `portability` | `schema_version`, `device` | INV-19, INV-20 | 0008, 0009 | US-15 | E-11 | QS-07; тест восстановления и переноса |
 | FR-17 | `sync` | `change_log` | INV-18 | 0011 | — | E-13 | после MVP: тест сходимости двух устройств |
 | FR-18 | `recognition` | `import_job`, `recognition_candidate`, `supplier_template` | INV-21 | 0012 | US-16 | E-14 | QS-11; e2e «скан → подтверждение → квитанция»; эталонный набор; тест нескольких строк услуг |

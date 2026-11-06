@@ -88,6 +88,11 @@ button {
 
 button:disabled {
   opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Курсор прогресса — только у кнопки, которая действительно выполняет действие. */
+button[aria-busy='true'] {
   cursor: progress;
 }
 
@@ -148,4 +153,173 @@ nav {
 .content {
   flex: 1;
   padding: 28px;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-head h1 {
+  margin-bottom: 4px;
+}
+
+.page-head button {
+  margin-top: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 13px;
+}
+
+.field input,
+.field select {
+  min-width: 200px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.tabs .nav-item {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 16px 0;
+  max-width: 640px;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-row select {
+  flex: 1;
+}
+
+.type-row .plus {
+  margin: 0;
+  min-width: 40px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.new-type {
+  display: grid;
+  gap: 6px;
+  border: 1px dashed #bcccdc;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 4px 0 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.actions button {
+  margin-top: 0;
+}
+
+.field-error {
+  color: #b42318;
+  font-size: 13px;
+  margin: 0;
+}
+
+.property-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 8px;
+}
+
+.property-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.property-main {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+}
+
+.property-main .badge {
+  justify-self: start;
+}
+
+.badge {
+  display: inline-block;
+  background: #e8f1fd;
+  color: #0b4a9e;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.property-row .actions {
+  margin-top: 0;
+}
+
+.empty {
+  background: #fff;
+  border: 1px dashed #bcccdc;
+  border-radius: 10px;
+  padding: 28px;
+  text-align: center;
+  margin-top: 12px;
+}
+
+.empty h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.empty button {
+  margin-top: 12px;
 }

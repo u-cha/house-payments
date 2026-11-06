@@ -12,4 +12,4 @@ export {
   type ProfileRole,
 } from './profile-service.js';
 export { ARGON2ID_PARAMS, hashPassword, verifyPassword } from './password.js';
-export { InMemorySessionStore, type Session } from './session.js';
+export { InMemorySessionStore, requireSession, type Session } from './session.js';

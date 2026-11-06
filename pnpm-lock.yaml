@@ -181,6 +181,9 @@ importers:
       '@node-rs/argon2':
         specifier: ^2.2.2
         version: 2.2.2
+      '@tanstack/react-query':
+        specifier: ^5.106.1
+        version: 5.106.1(@types/react@19.3.0)(react@19.3.1)
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
@@ -1165,6 +1168,18 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
+
+  '@tanstack/query-core@5.106.1':
+    resolution: {integrity: sha512-erYv/UACddcdgjOL2ixmFdK6tO/AVBeUcTCOtX2N51yZpDQ2U7KJ+xgB/bCNfsF3uoCDTqGHEEbDiFsIO9YUmQ==}
+
+  '@tanstack/react-query@5.106.1':
+    resolution: {integrity: sha512-ORDvJG/DSfmlFL9lQ8GDkE0VjtQbLeRDY7BL8xjKkQFGLfjFGfNWNuteWgPqA2gPJgLLuWfQ7IX0FlsHCJriyg==}
+    peerDependencies:
+      '@types/react': ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@tanstack/react-virtual@3.14.25':
     resolution: {integrity: sha512-LYNLaogi8NZUqjPgJ0byKQrXprkDJsZLd94u0i1UpYtXz2fgvbP4KrHygM4MSgSAvEaqykQofYdJ1Vuf7XIz/Q==}
@@ -5175,6 +5190,15 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@tanstack/query-core@5.106.1': {}
+
+  '@tanstack/react-query@5.106.1(@types/react@19.3.0)(react@19.3.1)':
+    dependencies:
+      '@tanstack/query-core': 5.106.1
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   '@tanstack/react-virtual@3.14.25(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:

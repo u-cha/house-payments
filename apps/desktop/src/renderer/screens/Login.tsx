@@ -32,7 +32,7 @@ export function Login() {
           }}
         />
         <ErrorBanner error={error} />
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} aria-busy={busy}>
           {busy ? 'Вход…' : 'Войти'}
         </button>
       </form>

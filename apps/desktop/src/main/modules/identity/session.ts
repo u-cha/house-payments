@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { Clock } from '../../shared/clock.js';
+import { AppError } from '../../shared/errors.js';
 
 export interface Session {
   id: string;
@@ -37,4 +38,17 @@ export class InMemorySessionStore {
   end(sessionId: string): void {
     this.sessions.delete(sessionId);
   }
+}
+
+/** Сессия по токену или `UNAUTHENTICATED`: общий чекпойнт для команд IPC (core-modules §3). */
+export function requireSession(sessions: InMemorySessionStore, sessionId: string): Session {
+  const session = sessions.get(sessionId);
+  if (session === undefined) {
+    throw new AppError({
+      code: 'UNAUTHENTICATED',
+      message: 'Сессия не найдена или истекла: войдите снова',
+      retryable: false,
+    });
+  }
+  return session;
 }

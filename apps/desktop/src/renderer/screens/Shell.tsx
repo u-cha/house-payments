@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useSession } from '../session';
+import { Properties } from './Properties';
 
-const SECTIONS = ['Главная', 'Помещения', 'Поставщики', 'Квитанции', 'Платежи'] as const;
+const SECTIONS = ['Главная', 'Объекты', 'Поставщики', 'Квитанции', 'Платежи'] as const;
 type Section = (typeof SECTIONS)[number];
 
 const PLACEHOLDER: Partial<Record<Section, string>> = {
   Главная: 'Каркас навигации готов: сводка появится в следующих задачах.',
-  Помещения: 'Раздел «Помещения» наполнится в M0-10…M0-11.',
   Поставщики: 'Раздел «Поставщики» появится вместе со справочниками (M1).',
   Квитанции: 'Раздел «Квитанции» появится вместе с квитанциями (M2).',
   Платежи: 'Раздел «Платежи» появится вместе с платежами (M2).',
@@ -41,8 +41,14 @@ export function Shell() {
           ))}
         </nav>
         <main className="content">
-          <h1>{section}</h1>
-          <p className="muted">{PLACEHOLDER[section]}</p>
+          {section === 'Объекты' ? (
+            <Properties />
+          ) : (
+            <>
+              <h1>{section}</h1>
+              <p className="muted">{PLACEHOLDER[section]}</p>
+            </>
+          )}
         </main>
       </div>
     </div>

@@ -22,7 +22,11 @@ export interface PropertyType {
   createdAt: string;
 }
 
-/** Ключ уникальности типа: регистр не различается, кириллица приводится JS. */
+/**
+ * Единое написание названия типа: нижний регистр и без внешних пробелов.
+ * Так тип хранится, так его показывает UI; уникальность — по этому же ключу
+ * (кириллицу приводит JS, SQLite `lower()` без ICU — нет).
+ */
 export function normalizeTypeName(name: string): string {
   return name.trim().toLowerCase();
 }

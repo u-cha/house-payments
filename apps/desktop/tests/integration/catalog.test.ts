@@ -7,6 +7,8 @@ import {
   CATALOG_CREATE_PROPERTY_CHANNEL,
   CATALOG_LIST_PROPERTIES_CHANNEL,
   CATALOG_LIST_PROPERTY_TYPES_CHANNEL,
+  CATALOG_RESTORE_PROPERTY_CHANNEL,
+  CATALOG_UPDATE_PROPERTY_CHANNEL,
 } from '../../src/shared/ipc.js';
 import {
   createEventRecorder,
@@ -17,8 +19,10 @@ import { registerCatalog } from '../../src/main/ipc/catalog.js';
 import {
   createCatalog,
   type Catalog,
+  type CatalogActor,
   type CatalogDeps,
 } from '../../src/main/modules/catalog/api.js';
+import { InMemorySessionStore } from '../../src/main/modules/identity/index.js';
 import { FixedClock } from '../../src/main/shared/clock.js';
 import { AppError } from '../../src/main/shared/errors.js';
 
@@ -36,12 +40,15 @@ vi.mock('electron', () => ({
 }));
 
 const NOW = '2026-11-06T10:00:00.000Z';
-const BUILT_IN_TYPES = ['Квартира', 'Дом', 'Машиноместо', 'Земельный участок', 'Нежилое помещение'];
+const ACTOR: CatalogActor = { profileId: 'profile-1' };
+const BUILT_IN_TYPES = ['квартира', 'дом', 'машиноместо', 'земельный участок', 'нежилое помещение'];
 const tempDirs: string[] = [];
 let file: string;
 let db: AppDatabase;
 let deps: CatalogDeps;
 let catalog: Catalog;
+let sessions: InMemorySessionStore;
+let sessionId: string;
 
 function tempDatabaseFile(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'house-payments-catalog-'));
@@ -50,7 +57,7 @@ function tempDatabaseFile(): string {
 }
 
 function typeId(name: string): string {
-  const type = catalog.listPropertyTypes().find((item) => item.name === name);
+  const type = catalog.listPropertyTypes().find((item) => item.name === name.toLowerCase());
   if (type === undefined) throw new Error(`тип ${name} не найден`);
   return type.id;
 }
@@ -83,8 +90,10 @@ beforeEach(() => {
     recorder: createEventRecorder(db, { deviceId: 'device-1', clock: new FixedClock(NOW) }),
   };
   catalog = createCatalog(db, deps);
+  sessions = new InMemorySessionStore(new FixedClock(NOW));
+  sessionId = sessions.create(ACTOR.profileId).id;
   electronMock.handlers.clear();
-  registerCatalog(db, deps);
+  registerCatalog(db, deps, sessions);
 });
 
 afterEach(() => {
@@ -97,13 +106,13 @@ describe('справочник типов объектов', () => {
     expect(catalog.listPropertyTypes().map((type) => type.name)).toEqual(BUILT_IN_TYPES);
 
     const custom = catalog.createPropertyType({ name: '  Гараж  ' });
-    expect(custom).toMatchObject({ name: 'Гараж', isActive: true });
+    expect(custom).toMatchObject({ name: 'гараж', isActive: true });
 
     expect(catalog.updatePropertyType({ id: custom.id, name: 'Гараж во дворе' })).toMatchObject({
-      name: 'Гараж во дворе',
+      name: 'гараж во дворе',
     });
     catalog.updatePropertyType({ id: custom.id, isActive: false });
-    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('Гараж во дворе');
+    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('гараж во дворе');
     expect(
       catalog.listPropertyTypes({ includeArchived: true }).find((type) => type.id === custom.id),
     ).toMatchObject({ isActive: false });
@@ -123,7 +132,7 @@ describe('справочник типов объектов', () => {
 
 describe('объекты: создание, чтение, правка и архив', () => {
   it('создаёт объект со свободным названием, читает его и пишет журнал без адреса', () => {
-    const property = catalog.createProperty({
+    const property = catalog.createProperty(ACTOR, {
       typeId: typeId('Квартира'),
       label: '  Карабайка 36 ',
       address: 'Карабайка, 36',
@@ -133,7 +142,7 @@ describe('объекты: создание, чтение, правка и арх
 
     expect(property).toMatchObject({
       label: 'Карабайка 36',
-      typeName: 'Квартира',
+      typeName: 'квартира',
       areaM2: 54.3,
       shareBp: 10000,
       status: 'active',
@@ -149,13 +158,13 @@ describe('объекты: создание, чтение, правка и арх
   });
 
   it('правит поля и тип, архивирует и возвращает объект, не удаляя историю', () => {
-    const property = catalog.createProperty({
+    const property = catalog.createProperty(ACTOR, {
       typeId: typeId('Квартира'),
       label: 'Карабайка 36',
       address: 'Карабайка, 36',
     });
 
-    const updated = catalog.updateProperty({
+    const updated = catalog.updateProperty(ACTOR, {
       id: property.id,
       typeId: typeId('Дом'),
       label: 'Карабайка 36, дом',
@@ -164,7 +173,7 @@ describe('объекты: создание, чтение, правка и арх
       note: null,
     });
     expect(updated).toMatchObject({
-      typeName: 'Дом',
+      typeName: 'дом',
       label: 'Карабайка 36, дом',
       areaM2: 120,
       shareBp: 5000,
@@ -172,12 +181,12 @@ describe('объекты: создание, чтение, правка и арх
       createdAt: property.createdAt,
     });
 
-    expect(catalog.archiveProperty(property.id)).toMatchObject({ status: 'archived' });
+    expect(catalog.archiveProperty(ACTOR, property.id)).toMatchObject({ status: 'archived' });
     expect(catalog.listProperties().map((item) => item.id)).not.toContain(property.id);
     expect(catalog.listProperties({ status: 'archived' }).map((item) => item.id)).toContain(
       property.id,
     );
-    expect(catalog.restoreProperty(property.id)).toMatchObject({ status: 'active' });
+    expect(catalog.restoreProperty(ACTOR, property.id)).toMatchObject({ status: 'active' });
 
     const operations = db
       .prepare('SELECT operation FROM change_log ORDER BY logical_clock')
@@ -187,8 +196,28 @@ describe('объекты: создание, чтение, правка и арх
     expect(db.prepare('SELECT COUNT(*) FROM property').pluck().get()).toBe(1);
   });
 
+  it('не даёт менять параметры архивного объекта до возврата в активные', () => {
+    const property = catalog.createProperty(ACTOR, {
+      typeId: typeId('Квартира'),
+      label: 'Карабайка 36',
+      address: 'Карабайка, 36',
+    });
+    catalog.archiveProperty(ACTOR, property.id);
+
+    const error = captureError(() =>
+      catalog.updateProperty(ACTOR, { id: property.id, label: 'Новое название' }),
+    );
+    expect(error.code).toBe('BUSINESS_RULE');
+    expect(error.details).toMatchObject({ reason: 'PROPERTY_ARCHIVED' });
+
+    catalog.restoreProperty(ACTOR, property.id);
+    expect(
+      catalog.updateProperty(ACTOR, { id: property.id, label: 'Новое название' }),
+    ).toMatchObject({ label: 'Новое название' });
+  });
+
   it('переживает переоткрытие файла данных', () => {
-    const property = catalog.createProperty({
+    const property = catalog.createProperty(ACTOR, {
       typeId: typeId('Машиноместо'),
       label: 'Подземный паркинг, 12',
       address: 'Карабайка, 36',
@@ -199,7 +228,7 @@ describe('объекты: создание, чтение, правка и арх
 
     expect(catalog.getProperty(property.id)).toMatchObject({
       label: 'Подземный паркинг, 12',
-      typeName: 'Машиноместо',
+      typeName: 'машиноместо',
       shareBp: 2500,
     });
     expect(catalog.listProperties()).toHaveLength(1);
@@ -211,33 +240,37 @@ describe('валидация ввода', () => {
     const apartment = typeId('Квартира');
     const base = { typeId: apartment, label: 'Объект', address: 'Адрес' };
 
-    expect(captureError(() => catalog.createProperty({ ...base, label: ' ' })).code).toBe(
+    expect(captureError(() => catalog.createProperty(ACTOR, { ...base, label: ' ' })).code).toBe(
       'VALIDATION_FAILED',
     );
-    expect(captureError(() => catalog.createProperty({ ...base, shareBp: 10001 })).code).toBe(
+    expect(
+      captureError(() => catalog.createProperty(ACTOR, { ...base, shareBp: 10001 })).code,
+    ).toBe('VALIDATION_FAILED');
+    expect(captureError(() => catalog.createProperty(ACTOR, { ...base, areaM2: 0 })).code).toBe(
       'VALIDATION_FAILED',
     );
-    expect(captureError(() => catalog.createProperty({ ...base, areaM2: 0 })).code).toBe(
-      'VALIDATION_FAILED',
-    );
-    expect(captureError(() => catalog.createProperty({ ...base, typeId: 'unknown' })).code).toBe(
-      'NOT_FOUND',
-    );
+    expect(
+      captureError(() => catalog.createProperty(ACTOR, { ...base, typeId: 'unknown' })).code,
+    ).toBe('NOT_FOUND');
     expect(captureError(() => catalog.getProperty('unknown')).code).toBe('NOT_FOUND');
 
     const hidden = catalog.createPropertyType({ name: 'Апартаменты' });
     catalog.updatePropertyType({ id: hidden.id, isActive: false });
-    expect(captureError(() => catalog.createProperty({ ...base, typeId: hidden.id })).code).toBe(
-      'VALIDATION_FAILED',
-    );
+    expect(
+      captureError(() => catalog.createProperty(ACTOR, { ...base, typeId: hidden.id })).code,
+    ).toBe('VALIDATION_FAILED');
     expect(db.prepare('SELECT COUNT(*) FROM property').pluck().get()).toBe(0);
   });
 });
 
 describe('IPC-мост каталога', () => {
   type Handler = (event: unknown, input: unknown) => Promise<Record<string, unknown>>;
-  const invoke = (channel: string, input: unknown): Promise<Record<string, unknown>> =>
-    (electronMock.handlers.get(channel) as Handler)({}, input);
+  const invoke = (
+    channel: string,
+    input: unknown,
+    activeSession = sessionId,
+  ): Promise<Record<string, unknown>> =>
+    (electronMock.handlers.get(channel) as Handler)({}, { sessionId: activeSession, input });
 
   it('возвращает VALIDATION_FAILED на неверную форму запроса', async () => {
     const result = await invoke(CATALOG_CREATE_PROPERTY_CHANNEL, {
@@ -256,16 +289,138 @@ describe('IPC-мост каталога', () => {
       address: 'Карабайка, 36',
       areaM2: 80,
     });
-    expect(created).toMatchObject({ ok: true, data: { label: 'Карабайка 36', typeName: 'Дом' } });
+    expect(created).toMatchObject({ ok: true, data: { label: 'Карабайка 36', typeName: 'дом' } });
 
     const listed = await invoke(CATALOG_LIST_PROPERTIES_CHANNEL, {});
     expect(listed).toMatchObject({ ok: true, data: [{ label: 'Карабайка 36' }] });
 
     const types = await invoke(CATALOG_LIST_PROPERTY_TYPES_CHANNEL, {});
     expect(types['ok']).toBe(true);
-    expect((types['data'] as Array<{ name: string }>)[0]).toMatchObject({ name: 'Квартира' });
+    expect((types['data'] as Array<{ name: string }>)[0]).toMatchObject({ name: 'квартира' });
 
     const archived = await invoke(CATALOG_ARCHIVE_PROPERTY_CHANNEL, 'unknown');
     expect(archived).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+});
+
+describe('сессия и аудит catalog-команд (гейт V2)', () => {
+  type Handler = (event: unknown, input: unknown) => Promise<Record<string, unknown>>;
+  const invoke = (
+    channel: string,
+    input: unknown,
+    activeSession = sessionId,
+  ): Promise<Record<string, unknown>> =>
+    (electronMock.handlers.get(channel) as Handler)({}, { sessionId: activeSession, input });
+
+  const propertyInput = () => ({
+    typeId: typeId('Квартира'),
+    label: 'Карабайка 36',
+    address: 'Карабайка, 36',
+  });
+
+  it('без активной сессии отвечает UNAUTHENTICATED и ничего не пишет', async () => {
+    const unknown = await invoke(CATALOG_CREATE_PROPERTY_CHANNEL, propertyInput(), 'unknown-token');
+    expect(unknown).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
+
+    const types = await invoke(CATALOG_LIST_PROPERTY_TYPES_CHANNEL, {}, 'unknown-token');
+    expect(types).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
+
+    // Сессия проверяется раньше формы ввода: без входа не раскрываем детали валидации.
+    const malformed = await invoke(
+      CATALOG_CREATE_PROPERTY_CHANNEL,
+      { label: 'x' },
+      'unknown-token',
+    );
+    expect(malformed).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
+
+    // Команда без sessionId — невалидный запрос на границе IPC.
+    const missing = await (electronMock.handlers.get(CATALOG_CREATE_PROPERTY_CHANNEL) as Handler)(
+      {},
+      { input: propertyInput() },
+    );
+    expect(missing).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+
+    expect(db.prepare('SELECT COUNT(*) FROM property').pluck().get()).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) FROM audit_event').pluck().get()).toBe(0);
+  });
+
+  it('пишет audit_event с profileId из сессии на каждое изменение объекта', async () => {
+    const created = await invoke(CATALOG_CREATE_PROPERTY_CHANNEL, propertyInput());
+    expect(created).toMatchObject({ ok: true });
+    const id = (created['data'] as { id: string }).id;
+
+    await invoke(CATALOG_UPDATE_PROPERTY_CHANNEL, { id, label: 'Карабайка 36, кв. 12' });
+    await invoke(CATALOG_ARCHIVE_PROPERTY_CHANNEL, id);
+    await invoke(CATALOG_RESTORE_PROPERTY_CHANNEL, id);
+
+    const audit = db
+      .prepare(
+        'SELECT profile_id, action, entity_type, entity_id FROM audit_event ORDER BY occurred_at, id',
+      )
+      .all();
+    expect(audit).toEqual([
+      {
+        profile_id: ACTOR.profileId,
+        action: 'property.create',
+        entity_type: 'property',
+        entity_id: id,
+      },
+      {
+        profile_id: ACTOR.profileId,
+        action: 'property.update',
+        entity_type: 'property',
+        entity_id: id,
+      },
+      {
+        profile_id: ACTOR.profileId,
+        action: 'property.archive',
+        entity_type: 'property',
+        entity_id: id,
+      },
+      {
+        profile_id: ACTOR.profileId,
+        action: 'property.restore',
+        entity_type: 'property',
+        entity_id: id,
+      },
+    ]);
+  });
+
+  it('аудит пишется в той же транзакции: отказ валидации не оставляет записи', async () => {
+    const failed = await invoke(CATALOG_CREATE_PROPERTY_CHANNEL, {
+      ...propertyInput(),
+      label: '   ',
+    });
+    expect(failed).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+    expect(db.prepare('SELECT COUNT(*) FROM audit_event').pluck().get()).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) FROM change_log').pluck().get()).toBe(0);
+  });
+
+  it('после перезапуска старый токен недействителен, а объект остаётся в файле', async () => {
+    const created = await invoke(CATALOG_CREATE_PROPERTY_CHANNEL, propertyInput());
+    const id = (created['data'] as { id: string }).id;
+
+    // Перезапуск приложения: новый процесс, новая память сессий, тот же файл данных.
+    db.close();
+    db = openAppDatabase(file);
+    deps = {
+      clock: new FixedClock(NOW),
+      recorder: createEventRecorder(db, { deviceId: 'device-1', clock: new FixedClock(NOW) }),
+    };
+    catalog = createCatalog(db, deps);
+    sessions = new InMemorySessionStore(new FixedClock(NOW));
+    electronMock.handlers.clear();
+    registerCatalog(db, deps, sessions);
+
+    const oldToken = await invoke(CATALOG_LIST_PROPERTIES_CHANNEL, {}, sessionId);
+    expect(oldToken).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
+
+    // После повторного входа новый токен видит тот же объект.
+    const freshSession = sessions.create(ACTOR.profileId).id;
+    const listed = await invoke(CATALOG_LIST_PROPERTIES_CHANNEL, {}, freshSession);
+    expect(listed).toMatchObject({
+      ok: true,
+      data: [{ id, label: 'Карабайка 36', status: 'active' }],
+    });
   });
 });
