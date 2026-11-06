@@ -44,6 +44,15 @@ export function formatArea(areaM2: number | null): string {
   return areaM2 === null ? '' : String(areaM2).replace('.', ',');
 }
 
+/**
+ * Площадь для чтения в реестре: разряды разделяются, дробная часть — запятая.
+ * В поле формы идёт formatArea без разрядов: парсер не принимает пробелы.
+ */
+export function formatAreaDisplay(areaM2: number | null): string {
+  if (areaM2 === null) return '';
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(areaM2);
+}
+
 /** Базисные пункты → проценты без хвостовых нулей: 10000 → «100», 2500 → «25». */
 export function formatSharePercent(shareBp: number): string {
   return String(shareBp / 100).replace('.', ',');

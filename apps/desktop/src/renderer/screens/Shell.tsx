@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { useSession } from '../session';
+import { TitleBar } from '../components';
+import { Icon, type IconName } from '../icons';
 import { Properties } from './Properties';
 
-const SECTIONS = ['Главная', 'Объекты', 'Поставщики', 'Квитанции', 'Платежи'] as const;
-type Section = (typeof SECTIONS)[number];
+interface SectionItem {
+  label: string;
+  icon: IconName;
+}
 
-const PLACEHOLDER: Partial<Record<Section, string>> = {
+const SECTIONS: SectionItem[] = [
+  { label: 'Главная', icon: 'home' },
+  { label: 'Объекты', icon: 'ledger' },
+  { label: 'Поставщики', icon: 'tap' },
+  { label: 'Квитанции', icon: 'receipt' },
+  { label: 'Платежи', icon: 'card' },
+];
+type Section = string;
+
+const PLACEHOLDER: Record<string, string> = {
   Главная: 'Каркас навигации готов: сводка появится в следующих задачах.',
   Поставщики: 'Раздел «Поставщики» появится вместе со справочниками (M1).',
   Квитанции: 'Раздел «Квитанции» появится вместе с квитанциями (M2).',
@@ -14,43 +26,44 @@ const PLACEHOLDER: Partial<Record<Section, string>> = {
 
 /** Каркас навигации после входа: разделы-заглушки из screens.md §1. */
 export function Shell() {
-  const { profile, quit } = useSession();
   const [section, setSection] = useState<Section>('Главная');
 
   return (
-    <div className="shell">
-      <header className="topbar">
-        <strong>house-payments</strong>
-        <span className="muted">{profile?.name}</span>
-        <button type="button" className="ghost" onClick={quit}>
-          Выйти
-        </button>
-      </header>
-      <div className="body">
-        <nav aria-label="Разделы">
+    <>
+      <TitleBar section={section} />
+      <div className="app-body">
+        <nav className="sidebar" aria-label="Разделы">
           {SECTIONS.map((item) => (
             <button
-              key={item}
+              key={item.label}
               type="button"
-              className={item === section ? 'nav-item active' : 'nav-item'}
-              aria-current={item === section ? 'page' : undefined}
-              onClick={() => setSection(item)}
+              className="nav-item"
+              aria-current={item.label === section ? 'page' : undefined}
+              onClick={() => setSection(item.label)}
             >
-              {item}
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
             </button>
           ))}
+          <div className="sidebar-foot">
+            Данные хранятся
+            <br />
+            локально на устройстве
+          </div>
         </nav>
-        <main className="content">
+        <main className="content" id="main">
           {section === 'Объекты' ? (
             <Properties />
           ) : (
-            <>
-              <h1>{section}</h1>
-              <p className="muted">{PLACEHOLDER[section]}</p>
-            </>
+            <div className="page-head placeholder">
+              <div className="grow">
+                <h1>{section}</h1>
+                <p>{PLACEHOLDER[section]}</p>
+              </div>
+            </div>
           )}
         </main>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, type MessageBoxOptions } from 'electron';
+import { app, BrowserWindow, dialog, nativeTheme, screen, type MessageBoxOptions } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEventRecorder, openDataFile, type AppDatabase } from './infrastructure/db/index.js';
@@ -11,6 +11,16 @@ import { InMemorySessionStore } from './modules/identity/index.js';
 import { AppError } from './shared/index.js';
 import { systemClock } from './shared/clock.js';
 import { uuidv7 } from './shared/ids.js';
+import {
+  DEFAULT_WINDOW_SIZE,
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
+  isWindowStateVisible,
+  loadWindowState,
+  saveWindowState,
+  windowStateFromBounds,
+  type WindowState,
+} from './window-state.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 // main собирается в dist/node/main, preload — в dist/node/preload/preload.cjs.
@@ -40,12 +50,49 @@ const quit = createQuitController({
   quit: () => app.quit(),
 });
 
+const TITLE_BAR_HEIGHT = 38;
+const WINDOW_STATE_SAVE_DELAY_MS = 300;
+
+/** Цвета окна следуют системной теме: без них при старте мелькает белая рамка. */
+function windowColors(): { background: string; overlay: string; symbol: string } {
+  return nativeTheme.shouldUseDarkColors
+    ? { background: '#10171A', overlay: '#10171A', symbol: '#E2E9EC' }
+    : { background: '#EEF1F2', overlay: '#FFFFFF', symbol: '#16202A' };
+}
+
+/** Восстановленное окно принимается только на видимом дисплее (ADR-0020). */
+function restoredWindowState(): WindowState | null {
+  const state = loadWindowState(app.getPath('userData'));
+  if (state === null) return null;
+  const displays = screen.getAllDisplays().map((display) => display.workArea);
+  return isWindowStateVisible(state, displays) ? state : null;
+}
+
 function createWindow(): void {
+  const saved = restoredWindowState();
+  const colors = windowColors();
   const window = new BrowserWindow({
-    width: 900,
-    height: 640,
+    width: saved?.width ?? DEFAULT_WINDOW_SIZE.width,
+    height: saved?.height ?? DEFAULT_WINDOW_SIZE.height,
+    ...(saved === null ? {} : { x: saved.x, y: saved.y }),
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
     show: false,
     title: 'house-payments',
+    backgroundColor: colors.background,
+    // Кастомный заголовок окна (desktop-ui-electron, ADR-0020): светофор
+    // остаётся системным, drag-регион задаётся в renderer.
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 16, y: 13 },
+    ...(process.platform === 'darwin'
+      ? {}
+      : {
+          titleBarOverlay: {
+            color: colors.overlay,
+            symbolColor: colors.symbol,
+            height: TITLE_BAR_HEIGHT,
+          },
+        }),
     webPreferences: {
       // Изоляция renderer: Node-API в окне нет, мост — только через preload.
       contextIsolation: true,
@@ -55,9 +102,29 @@ function createWindow(): void {
     },
   });
 
+  const statePath = app.getPath('userData');
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const persistWindowState = (): void => {
+    if (window.isDestroyed()) return;
+    const bounds = window.isMaximized() ? window.getNormalBounds() : window.getBounds();
+    saveWindowState(statePath, windowStateFromBounds(bounds, window.isMaximized()));
+  };
+
+  const scheduleStateSave = (): void => {
+    if (saveTimer !== undefined) clearTimeout(saveTimer);
+    saveTimer = setTimeout(persistWindowState, WINDOW_STATE_SAVE_DELAY_MS);
+  };
+
+  if (saved?.isMaximized === true) window.maximize();
+
   window.once('ready-to-show', () => window.show());
+  window.on('resize', scheduleStateSave);
+  window.on('move', scheduleStateSave);
 
   window.on('close', (event) => {
+    if (saveTimer !== undefined) clearTimeout(saveTimer);
+    persistWindowState();
     if (quit.quitting) return;
     event.preventDefault();
     void quit.request();
@@ -88,6 +155,23 @@ function deviceIdFor(db: AppDatabase): string {
 }
 
 void app.whenReady().then(() => {
+  // Тема — системная; renderer получает её через prefers-color-scheme, main
+  // перекрашивает рамку и оверлей при смене темы ОС (ADR-0020).
+  nativeTheme.themeSource = 'system';
+  nativeTheme.on('updated', () => {
+    const colors = windowColors();
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.setBackgroundColor(colors.background);
+      if (process.platform !== 'darwin') {
+        window.setTitleBarOverlay({
+          color: colors.overlay,
+          symbolColor: colors.symbol,
+          height: TITLE_BAR_HEIGHT,
+        });
+      }
+    }
+  });
+
   try {
     // Файл в userData: создаётся при первом запуске, открывается при следующих.
     database = openDataFile(app.getPath('userData'));
