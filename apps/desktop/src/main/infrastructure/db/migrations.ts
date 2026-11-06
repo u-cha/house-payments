@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppDatabase } from './connection.js';
+import { MIGRATION_HOOKS } from './migration-hooks.js';
 
 /** Рядом с этим модулем: `src/...` в тестах, `dist/node/main/...` в сборке. */
 export const DEFAULT_MIGRATIONS_DIR = path.join(
@@ -89,6 +90,8 @@ export function migrate(db: AppDatabase, migrations: Migration[]): number[] {
     if (applied.has(migration.version)) continue;
     db.transaction(() => {
       db.exec(migration.sql);
+      // Шаг данных на JS — в той же транзакции, что и SQL миграции.
+      MIGRATION_HOOKS[migration.version]?.(db);
       insertVersion.run(migration.version, new Date().toISOString(), migration.name);
     }).immediate();
     ran.push(migration.version);

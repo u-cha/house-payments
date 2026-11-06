@@ -38,7 +38,7 @@ describe('SQLite connection', () => {
 });
 
 describe('migration runner', () => {
-  it('applies 001–004, is idempotent on reopen and keeps data', () => {
+  it('applies 001–005, is idempotent on reopen and keeps data', () => {
     const file = tempDatabaseFile();
 
     const first = openAppDatabase(file);
@@ -46,7 +46,7 @@ describe('migration runner', () => {
       .prepare('SELECT version FROM schema_version ORDER BY version')
       .pluck()
       .all();
-    expect(firstVersions).toEqual([1, 2, 3, 4]);
+    expect(firstVersions).toEqual([1, 2, 3, 4, 5]);
     first
       .prepare('INSERT INTO setting (key, value, updated_at) VALUES (?, ?, ?)')
       .run('theme', 'dark', '2026-11-05T00:00:00.000Z');
@@ -58,7 +58,7 @@ describe('migration runner', () => {
       expect(second.prepare('SELECT value FROM setting WHERE key = ?').pluck().get('theme')).toBe(
         'dark',
       );
-      expect(second.prepare('SELECT COUNT(*) FROM schema_version').pluck().get()).toBe(4);
+      expect(second.prepare('SELECT COUNT(*) FROM schema_version').pluck().get()).toBe(5);
       expect(migrate(second, loadMigrations(DEFAULT_MIGRATIONS_DIR))).toEqual([]);
     } finally {
       second.close();
@@ -71,7 +71,7 @@ describe('migration runner', () => {
     try {
       migrate(db, loadMigrations(DEFAULT_MIGRATIONS_DIR));
       db.prepare('INSERT INTO schema_version (version, applied_at, note) VALUES (?, ?, ?)').run(
-        5,
+        6,
         '2026-11-05T00:00:00.000Z',
         'future',
       );
