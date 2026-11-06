@@ -7,7 +7,7 @@ import { registerAuth } from './ipc/auth.js';
 import { registerCatalog } from './ipc/catalog.js';
 import { registerPing } from './ipc/ping.js';
 import { createQuitController } from './lifecycle.js';
-import { InMemorySessionStore } from './modules/identity/index.js';
+import { InMemorySessionStore } from './modules/identity/api.js';
 import { AppError } from './shared/index.js';
 import { systemClock } from './shared/clock.js';
 import { uuidv7 } from './shared/ids.js';
@@ -23,6 +23,11 @@ import {
 } from './window-state.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+// E2E (M0-12): отдельный каталог данных и выход без диалога, чтобы smoke-тест
+// не трогал профиль пользователя. В обычном запуске переменные не заданы.
+const userDataOverride = process.env['HOUSE_PAYMENTS_USER_DATA'];
+if (userDataOverride !== undefined) app.setPath('userData', userDataOverride);
+const e2e = process.env['HOUSE_PAYMENTS_E2E'] === '1';
 // main собирается в dist/node/main, preload — в dist/node/preload/preload.cjs.
 const preloadPath = path.join(currentDir, '../preload/preload.cjs');
 
@@ -32,6 +37,7 @@ const preloadPath = path.join(currentDir, '../preload/preload.cjs');
  */
 const quit = createQuitController({
   confirm: async () => {
+    if (e2e) return true;
     const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
     const options: MessageBoxOptions = {
       type: 'question',

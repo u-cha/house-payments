@@ -22,7 +22,7 @@ import {
   type CatalogActor,
   type CatalogDeps,
 } from '../../src/main/modules/catalog/api.js';
-import { InMemorySessionStore } from '../../src/main/modules/identity/index.js';
+import { InMemorySessionStore } from '../../src/main/modules/identity/api.js';
 import { FixedClock } from '../../src/main/shared/clock.js';
 import { AppError } from '../../src/main/shared/errors.js';
 

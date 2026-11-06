@@ -26,7 +26,7 @@ import {
   type CatalogActor,
   type CatalogDeps,
 } from '../modules/catalog/api.js';
-import { requireSession, type InMemorySessionStore } from '../modules/identity/index.js';
+import { requireSession, type InMemorySessionStore } from '../modules/identity/api.js';
 import { parseIpcInput, respond } from './result.js';
 
 const sessionIdSchema = z.string().min(1);
