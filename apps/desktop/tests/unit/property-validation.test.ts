@@ -5,6 +5,7 @@ import {
   formValuesFromProperty,
   formatAreaDisplay,
   formatSharePercent,
+  isPropertyFormDirty,
   validatePropertyForm,
 } from '../../src/renderer/property-validation';
 
@@ -106,5 +107,62 @@ describe('форма из существующего объекта', () => {
     });
     expect(formatSharePercent(1)).toBe('0,01');
     expect(formatSharePercent(10_000)).toBe('100');
+  });
+});
+
+describe('guard несохранённых изменений формы', () => {
+  const initial = emptyPropertyForm('type-1');
+  const emptyDraft = { addingType: false, typeName: '' };
+  const property: PropertyDto = {
+    id: 'property-1',
+    typeId: 'type-1',
+    typeName: 'Квартира',
+    label: 'Квартира 12',
+    address: 'Карабайка, 36',
+    areaM2: 54.3,
+    shareBp: 10_000,
+    note: null,
+    status: 'active',
+    createdAt: '2026-11-06T10:00:00.000Z',
+  };
+
+  it('чистая форма без черновика типа не считается изменённой', () => {
+    expect(isPropertyFormDirty(initial, { ...initial }, emptyDraft)).toBe(false);
+  });
+
+  it('изменение любого поля делает форму «грязной»', () => {
+    expect(isPropertyFormDirty(initial, { ...initial, label: 'Квартира' }, emptyDraft)).toBe(true);
+    expect(isPropertyFormDirty(initial, { ...initial, typeId: 'type-2' }, emptyDraft)).toBe(true);
+    expect(isPropertyFormDirty(initial, { ...initial, address: 'Адрес' }, emptyDraft)).toBe(true);
+    expect(isPropertyFormDirty(initial, { ...initial, areaM2: '54,3' }, emptyDraft)).toBe(true);
+    expect(isPropertyFormDirty(initial, { ...initial, sharePercent: '25' }, emptyDraft)).toBe(true);
+  });
+
+  it('открытая форма нового типа или введённое имя типа — тоже изменения', () => {
+    expect(isPropertyFormDirty(initial, { ...initial }, { addingType: true, typeName: '' })).toBe(
+      true,
+    );
+    expect(
+      isPropertyFormDirty(initial, { ...initial }, { addingType: false, typeName: 'Гараж' }),
+    ).toBe(true);
+    expect(
+      isPropertyFormDirty(initial, { ...initial }, { addingType: true, typeName: 'Гараж' }),
+    ).toBe(true);
+  });
+
+  it('возврат к исходным значениям и пустому черновику снова делает форму чистой', () => {
+    const changed = { ...initial, label: 'Квартира', areaM2: '54,3' };
+    expect(isPropertyFormDirty(initial, changed, { addingType: true, typeName: 'Гараж' })).toBe(
+      true,
+    );
+    expect(isPropertyFormDirty(initial, { ...changed, ...initial }, emptyDraft)).toBe(false);
+  });
+
+  it('снимок существующего объекта не «грязный», пока значения не изменили', () => {
+    const snapshot = formValuesFromProperty(property);
+    expect(isPropertyFormDirty(snapshot, { ...snapshot }, emptyDraft)).toBe(false);
+    expect(
+      isPropertyFormDirty(snapshot, { ...snapshot, address: 'Другой адрес' }, emptyDraft),
+    ).toBe(true);
   });
 });
