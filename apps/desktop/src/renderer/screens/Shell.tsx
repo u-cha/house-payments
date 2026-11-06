@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import { TitleBar } from '../components';
+import { Icon, type IconName } from '../icons';
 import { Properties } from './Properties';
 
-const SECTIONS = ['Главная', 'Объекты', 'Поставщики', 'Квитанции', 'Платежи'] as const;
-type Section = (typeof SECTIONS)[number];
+interface SectionItem {
+  label: string;
+  icon: IconName;
+}
 
-const PLACEHOLDER: Partial<Record<Section, string>> = {
+const SECTIONS: SectionItem[] = [
+  { label: 'Главная', icon: 'home' },
+  { label: 'Объекты', icon: 'ledger' },
+  { label: 'Поставщики', icon: 'tap' },
+  { label: 'Квитанции', icon: 'receipt' },
+  { label: 'Платежи', icon: 'card' },
+];
+type Section = string;
+
+const PLACEHOLDER: Record<string, string> = {
   Главная: 'Каркас навигации готов: сводка появится в следующих задачах.',
   Поставщики: 'Раздел «Поставщики» появится вместе со справочниками (M1).',
   Квитанции: 'Раздел «Квитанции» появится вместе с квитанциями (M2).',
@@ -23,13 +35,14 @@ export function Shell() {
         <nav className="sidebar" aria-label="Разделы">
           {SECTIONS.map((item) => (
             <button
-              key={item}
+              key={item.label}
               type="button"
               className="nav-item"
-              aria-current={item === section ? 'page' : undefined}
-              onClick={() => setSection(item)}
+              aria-current={item.label === section ? 'page' : undefined}
+              onClick={() => setSection(item.label)}
             >
-              {item}
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
             </button>
           ))}
           <div className="sidebar-foot">

@@ -32,17 +32,11 @@ export function FirstRun() {
             </div>
             <p className="auth-sub">Учёт платежей за жильё</p>
             <div className="auth-rule" />
-            <p className="auth-lead">
-              Создайте профиль владельца — он нужен для входа и записи действий в аудит.
-            </p>
-            <p className="auth-note">
-              Один профиль на файл данных. Пароль не короче 8 символов и не восстанавливается.
-            </p>
           </div>
           <div className="auth-divider" aria-hidden="true" />
           <div className="auth-form">
             <h1>Первый запуск</h1>
-            <p className="auth-profile">Новый файл данных на этом компьютере</p>
+            <p className="auth-profile">Профиль владельца нужен для входа и аудита</p>
             <form onSubmit={submit} noValidate>
               <div className="field">
                 <label htmlFor="owner-name">Имя профиля</label>
@@ -92,7 +86,6 @@ export function FirstRun() {
         </div>
         <div className="auth-foot">
           <span>Файл данных создаётся автоматически</span>
-          <span>Сеть не требуется</span>
         </div>
       </main>
     </>

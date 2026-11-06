@@ -1,6 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { PropertyDto, PropertyTypeDto } from '../../shared/ipc';
 import { ErrorBanner } from '../components';
+import { Icon } from '../icons';
+import { Select } from '../select';
 import { toUiError } from '../api';
 import {
   useArchiveProperty,
@@ -54,7 +56,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || saving) return;
+      if (event.key !== 'Escape' || saving || event.defaultPrevented) return;
       if (confirmArchive) {
         setConfirmArchive(false);
         return;
@@ -169,13 +171,25 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
         <div className="field">
           <label htmlFor="property-typeId">Тип объекта</label>
           <div className="type-row">
-            <select {...field('typeId')}>
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              id="property-typeId"
+              name="typeId"
+              value={values.typeId}
+              options={types.map((type) => ({ value: type.id, label: type.name }))}
+              disabled={readOnly === true}
+              invalid={errors.typeId !== undefined}
+              describedBy={errors.typeId === undefined ? undefined : 'property-typeId-error'}
+              onChange={(next) => {
+                setValues((current) => ({ ...current, typeId: next }));
+                if (errors.typeId !== undefined) {
+                  setErrors((current) => {
+                    const next = { ...current };
+                    delete next.typeId;
+                    return next;
+                  });
+                }
+              }}
+            />
             {readOnly ? null : (
               <button
                 type="button"
@@ -187,7 +201,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
                   setTypeError(null);
                 }}
               >
-                +
+                <Icon name="plus" size={14} />
               </button>
             )}
           </div>
@@ -277,6 +291,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
               disabled={restore.isPending}
               aria-busy={restore.isPending}
             >
+              <Icon name="restore" />
               {restore.isPending ? 'Возврат…' : 'Вернуть в активные'}
             </button>
           </div>
@@ -288,7 +303,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
                 className="btn danger start"
                 onClick={() => setConfirmArchive(true)}
               >
-                В архив
+                <Icon name="archive" />В архив
               </button>
             )}
             <button type="button" className="btn ghost" onClick={onClose} disabled={saving}>
@@ -315,6 +330,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
               disabled={archive.isPending}
               aria-busy={archive.isPending}
             >
+              <Icon name="archive" />
               {archive.isPending ? 'Архивация…' : 'В архив'}
             </button>
           </div>

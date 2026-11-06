@@ -1,11 +1,13 @@
 /*
  * Визуальная система house-payments (docs/design/ux/design-system.md).
- * Токены по ролям, две темы через prefers-color-scheme, плотность рабочего
- * окна: контролы 32–36 px, тело 12,5–13,5 px. Никаких UI-фреймворков.
+ * Токены по ролям. Тема выбирается переключателем в шапке (light/dark/system)
+ * и приходит атрибутом data-theme на <html>; системная разрешается через
+ * prefers-color-scheme в theme.ts. Плотность рабочего окна: контролы 32–36 px,
+ * тело 12,5–13,5 px. Никаких UI-фреймворков.
  */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* Цвет: ядро */
   --ink: #16202a;
@@ -41,27 +43,27 @@
   --motion: 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e2e9ec;
-    --paper: #10171a;
-    --surface: #182126;
-    --rule: #2a363c;
-    --accent: #6fb3bc;
-    --danger: #e08c86;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-    --ink-muted: #a2b0b7;
-    --ink-faint: #7d8c93;
-    --paper-soft: #141c20;
-    --rule-strong: #3a484f;
-    --rule-soft: #222e34;
-    --accent-strong: #8fc9d0;
-    --accent-soft: #1d2e32;
-    --danger-soft: #2a1919;
-    --danger-border: #4a2a28;
-    --on-accent: #0b1416;
-    --row-hover: rgba(255, 255, 255, 0.04);
-  }
+  --ink: #e2e9ec;
+  --paper: #10171a;
+  --surface: #182126;
+  --rule: #2a363c;
+  --accent: #6fb3bc;
+  --danger: #e08c86;
+
+  --ink-muted: #a2b0b7;
+  --ink-faint: #7d8c93;
+  --paper-soft: #141c20;
+  --rule-strong: #3a484f;
+  --rule-soft: #222e34;
+  --accent-strong: #8fc9d0;
+  --accent-soft: #1d2e32;
+  --danger-soft: #2a1919;
+  --danger-border: #4a2a28;
+  --on-accent: #0b1416;
+  --row-hover: rgba(255, 255, 255, 0.04);
 }
 
 *,
@@ -132,6 +134,7 @@ button {
 }
 
 .titlebar {
+  position: relative;
   flex: 0 0 var(--titlebar-height);
   display: flex;
   align-items: center;
@@ -149,7 +152,11 @@ button {
   padding-right: 148px;
 }
 
+/* Словесный знак — по центру окна, как заголовок нативного окна. */
 .titlebar-brand {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   font-family: var(--font-display);
   font-size: 13.5px;
   letter-spacing: 0.01em;
@@ -158,9 +165,6 @@ button {
 
 .titlebar-crumb {
   min-width: 0;
-  padding-left: 12px;
-  margin-left: 0;
-  border-left: 1px solid var(--rule);
   color: var(--ink-muted);
   font-size: 12px;
   white-space: nowrap;
@@ -193,6 +197,45 @@ button {
   background: var(--accent-soft);
 }
 
+.theme-switch {
+  -webkit-app-region: no-drag;
+  display: flex;
+  gap: 1px;
+  margin-right: 8px;
+  padding: 1px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--paper-soft);
+}
+
+.theme-option {
+  width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink-faint);
+}
+
+.theme-option:hover {
+  background: var(--row-hover);
+  color: var(--ink);
+}
+
+.theme-option[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+
+.theme-option svg {
+  width: 14px;
+  height: 14px;
+}
+
 .app-body {
   display: flex;
   flex: 1;
@@ -215,6 +258,7 @@ button {
   flex: 0 0 32px;
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 0 18px;
   border: 0;
   background: transparent;
@@ -230,11 +274,20 @@ button {
   background: var(--row-hover);
 }
 
+.nav-item .icon {
+  flex: 0 0 16px;
+  color: var(--ink-faint);
+}
+
 .nav-item[aria-current='page'] {
   background: var(--surface);
   color: var(--ink);
   font-weight: 600;
   box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.nav-item[aria-current='page'] .icon {
+  color: var(--accent);
 }
 
 .sidebar-foot {
@@ -328,6 +381,10 @@ button {
 
 .btn {
   -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   height: 32px;
   padding: 0 14px;
   border: 1px solid transparent;
@@ -391,8 +448,7 @@ button {
   gap: 10px;
 }
 
-.input,
-.select {
+.input {
   height: 32px;
   border: 1px solid var(--rule);
   border-radius: var(--radius-control);
@@ -411,7 +467,93 @@ button {
 }
 
 .select {
+  position: relative;
   width: 150px;
+  min-width: 0;
+}
+
+.select-trigger {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 30px 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-size: 12.5px;
+  text-align: left;
+  transition: border-color var(--motion);
+}
+
+.select-trigger:hover {
+  border-color: var(--rule-strong);
+}
+
+.select-trigger:disabled {
+  background: var(--paper-soft);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.select-trigger[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.select-value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-chevron {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.select-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 280px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(22, 32, 42, 0.18);
+}
+
+.select-option {
+  padding: 7px 10px;
+  border-radius: 2px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.select-option.active {
+  background: var(--row-hover);
+}
+
+.select-option[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .segmented {
@@ -653,21 +795,6 @@ button {
   margin: 22px 0 18px;
 }
 
-.auth-lead {
-  max-width: 290px;
-  color: var(--ink-muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.auth-note {
-  max-width: 280px;
-  margin-top: 38px;
-  color: var(--ink-faint);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
 .auth-divider {
   align-self: stretch;
   width: 1px;
@@ -751,8 +878,7 @@ button {
   font-size: 11.5px;
 }
 
-.field input,
-.field select {
+.field input {
   width: 100%;
   height: 34px;
   border: 1px solid var(--rule-strong);
@@ -762,16 +888,27 @@ button {
   font-size: 13px;
 }
 
-.field input:focus-visible,
-.field select:focus-visible {
+.field input:focus-visible {
   outline-offset: 1px;
 }
 
-.field input:disabled,
-.field select:disabled {
+.field input:disabled {
   background: var(--paper-soft);
   color: var(--ink-muted);
   cursor: not-allowed;
+}
+
+.field .select {
+  width: 100%;
+}
+
+.field .select-trigger {
+  height: 34px;
+  font-size: 13px;
+}
+
+.type-row .select {
+  flex: 1;
 }
 
 .field-hint {
@@ -801,20 +938,17 @@ button {
   gap: 8px;
 }
 
-.type-row select {
-  flex: 1;
-}
-
 .plus {
   flex: 0 0 34px;
   width: 34px;
   height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--rule);
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--accent);
-  font-size: 17px;
-  line-height: 1;
 }
 
 .plus:hover {

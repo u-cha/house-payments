@@ -5,6 +5,8 @@ import { IpcError, toUiError } from '../api';
 import { useProperties, usePropertyTypes } from '../catalog';
 import { useSession } from '../session';
 import { PropertyForm } from './PropertyForm';
+import { Icon } from '../icons';
+import { Select } from '../select';
 import { formatAreaDisplay, formatSharePercent } from '../property-validation';
 
 type View = { mode: 'list' } | { mode: 'create' } | { mode: 'edit'; property: PropertyDto };
@@ -102,6 +104,7 @@ export function Properties() {
           data-add-property
           onClick={openCreate}
         >
+          <Icon name="plus" />
           Добавить объект
         </button>
       </div>
@@ -123,20 +126,17 @@ export function Properties() {
         <label className="visually-hidden" htmlFor="properties-type-filter">
           Тип объекта
         </label>
-        <select
+        <Select
           id="properties-type-filter"
           name="typeFilter"
-          className="select"
           value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
-        >
-          <option value="">Все типы</option>
-          {types.map((type) => (
-            <option key={type.id} value={type.id}>
-              {type.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: '', label: 'Все типы' },
+            ...types.map((type) => ({ value: type.id, label: type.name })),
+          ]}
+          onChange={setTypeFilter}
+          ariaLabel="Тип объекта"
+        />
         <div className="segmented" role="group" aria-label="Статус объектов">
           <button
             type="button"
@@ -282,6 +282,7 @@ function EmptyState({
       <h2>Пока нет объектов</h2>
       <p>Добавьте первый объект — квартиру, дом, машиноместо или участок.</p>
       <button type="button" className="btn" onClick={onAdd} disabled={addDisabled}>
+        <Icon name="plus" />
         Добавить объект
       </button>
     </div>

@@ -25,13 +25,6 @@ export function Login() {
             </div>
             <p className="auth-sub">Учёт платежей за жильё</p>
             <div className="auth-rule" />
-            <p className="auth-lead">
-              Квартиры, дома и участки, лицевые счета, квитанции и платежи — в одном файле на этом
-              компьютере.
-            </p>
-            <p className="auth-note">
-              Сеть не требуется. Вход по паролю владельца, действия записываются в аудит.
-            </p>
           </div>
           <div className="auth-divider" aria-hidden="true" />
           <div className="auth-form">
@@ -64,7 +57,6 @@ export function Login() {
         </div>
         <div className="auth-foot">
           <span>Данные хранятся только на этом компьютере</span>
-          <span>Пароль не восстанавливается</span>
         </div>
       </main>
     </>
