@@ -10,5 +10,13 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   // Sandboxed preload обязан быть CommonJS — require-импорт здесь уместен.
   { files: ['**/*.cts'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
+  // Конфиг dependency-cruiser — CommonJS-файл для внешнего инструмента.
+  {
+    files: ['*.cjs'],
+    languageOptions: {
+      globals: { require: 'readonly', module: 'writable', __dirname: 'readonly' },
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
   prettier,
 );

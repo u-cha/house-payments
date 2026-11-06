@@ -14,8 +14,8 @@ function rendererSources(dir = RENDERER): string[] {
 
 /**
  * Граница слоёв (core-modules §3): renderer — только UI и вызовы IPC, без Node,
- * Electron, SQLite и внутренностей main. Полный архитектурный тест — M0-12,
- * здесь — минимум для DoD M0-11.
+ * Electron, SQLite и внутренностей main. Архитектурные тесты M0-12: depcruise
+ * покрывает импорты, здесь — Node-модули, SQL и прямые пути в main.
  */
 describe('границы renderer', () => {
   it('не импортирует Node, Electron, better-sqlite3 и слои main', () => {

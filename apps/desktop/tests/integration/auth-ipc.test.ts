@@ -9,7 +9,7 @@ import {
   type AppDatabase,
 } from '../../src/main/infrastructure/db/index.js';
 import { createAuthHandlers, registerAuth } from '../../src/main/ipc/auth.js';
-import { InMemorySessionStore, type IdentityDeps } from '../../src/main/modules/identity/index.js';
+import { InMemorySessionStore, type IdentityDeps } from '../../src/main/modules/identity/api.js';
 import { FixedClock } from '../../src/main/shared/clock.js';
 import { AppError } from '../../src/main/shared/errors.js';
 

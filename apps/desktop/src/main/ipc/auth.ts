@@ -20,7 +20,7 @@ import {
   type IdentityDeps,
   type InMemorySessionStore,
   type Profile,
-} from '../modules/identity/index.js';
+} from '../modules/identity/api.js';
 import { AppError } from '../shared/errors.js';
 
 const createOwnerSchema = z.object({ name: z.string(), password: z.string() });

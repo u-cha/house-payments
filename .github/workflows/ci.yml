@@ -30,7 +30,7 @@ jobs:
   check:
     # Имя job = контекст обязательной проверки в ruleset protect-main (ADR-0015).
     name: check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -51,5 +51,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # E2E запускает Electron: на Ubuntu нужен X-сервер (xvfb) и GTK.
+      - name: Install Electron runtime for e2e
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0t64 libnss3 libasound2t64
+
       - name: Validate artifacts and run tests
-        run: pnpm check
+        run: xvfb-run --auto-servernum pnpm check
