@@ -10,7 +10,7 @@
     "arch": "pnpm --filter @house-payments/desktop arch",
     "lint": "pnpm --filter @house-payments/desktop lint",
     "typecheck": "pnpm --filter @house-payments/desktop typecheck",
-    "validate": "node scripts/validate-docs.mjs",
+    "validate": "node scripts/validate-docs.mjs && node scripts/validate-risks.mjs",
     "check": "pnpm validate && pnpm arch && pnpm test && pnpm test:e2e",
     "sync:main": "node scripts/sync-main.mjs",
     "ci:status": "node scripts/ci-status.mjs",
