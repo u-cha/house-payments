@@ -1,12 +1,41 @@
 // Sandboxed preload не поддерживает ESM и не грузит локальные модули,
 // поэтому файл самодостаточен и собирается в CommonJS (preload.cjs).
-import type { HousePaymentsApi } from '../shared/ipc.js';
+import type {
+  AuthStatusResult,
+  CreateOwnerInput,
+  HousePaymentsApi,
+  IpcResult,
+  LoginInput,
+  PingResult,
+  ProfileDto,
+  SessionDto,
+} from '../shared/ipc.js';
 import electron = require('electron');
 
-const PING_CHANNEL = 'app:ping'; // совпадает с PING_CHANNEL в src/shared/ipc.ts
+// Каналы продублированы строками: preload не может импортировать shared.
+const CHANNELS = {
+  ping: 'app:ping',
+  authStatus: 'auth:status',
+  createOwner: 'auth:create-owner',
+  login: 'auth:login',
+  logout: 'auth:logout',
+  quit: 'app:quit',
+} as const;
+
+const invoke = <T,>(channel: string, payload?: unknown): Promise<T> =>
+  electron.ipcRenderer.invoke(channel, payload) as Promise<T>;
 
 const api: HousePaymentsApi = {
-  ping: () => electron.ipcRenderer.invoke(PING_CHANNEL),
+  ping: () => invoke<PingResult>(CHANNELS.ping),
+  authStatus: () => invoke<IpcResult<AuthStatusResult>>(CHANNELS.authStatus),
+  createOwner: (input: CreateOwnerInput) =>
+    invoke<IpcResult<ProfileDto>>(CHANNELS.createOwner, input),
+  login: (input: LoginInput) => invoke<IpcResult<SessionDto>>(CHANNELS.login, input),
+  logout: (sessionId: string) => invoke<IpcResult<null>>(CHANNELS.logout, sessionId),
+  // Fire-and-forget: процесс завершится раньше, чем придёт ответ invoke.
+  quit: () => {
+    electron.ipcRenderer.send(CHANNELS.quit);
+  },
 };
 
 electron.contextBridge.exposeInMainWorld('api', api);

@@ -5,6 +5,7 @@ export {
   createProfile,
   deactivateProfile,
   deleteProfile,
+  getOwnerProfile,
   type CreateProfileInput,
   type IdentityDeps,
   type Profile,

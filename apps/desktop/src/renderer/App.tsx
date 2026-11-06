@@ -1,22 +1,20 @@
-import { useEffect, useState } from 'react';
-import type { PingResult } from '../shared/ipc';
+import { useEffect } from 'react';
+import { FirstRun } from './screens/FirstRun';
+import { Login } from './screens/Login';
+import { Shell } from './screens/Shell';
+import { useSession } from './session';
 
+/** Выбор экрана по состоянию сессии: первый запуск → вход → каркас. */
 export function App() {
-  const [ping, setPing] = useState<PingResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const phase = useSession((state) => state.phase);
+  const bootstrap = useSession((state) => state.bootstrap);
 
   useEffect(() => {
-    window.api.ping().then(setPing, (reason: unknown) => setError(String(reason)));
-  }, []);
+    void bootstrap();
+  }, [bootstrap]);
 
-  const nodeLeaked = 'require' in window || 'process' in window;
-
-  return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: 24 }}>
-      <h1>house-payments</h1>
-      <p>Версия приложения: {ping?.version ?? '…'}</p>
-      <p>IPC ping: {error ? `ошибка: ${error}` : ping ? `ok (${ping.version})` : 'ожидание…'}</p>
-      <p>Изоляция renderer: {nodeLeaked ? 'НАРУШЕНА' : 'в порядке — require/process недоступны'}</p>
-    </main>
-  );
+  if (phase === 'loading') return <p className="muted">Загрузка…</p>;
+  if (phase === 'first-run') return <FirstRun />;
+  if (phase === 'login') return <Login />;
+  return <Shell />;
 }
