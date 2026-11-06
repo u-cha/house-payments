@@ -25,6 +25,25 @@ export interface CatalogDeps {
   recorder: EventRecorder;
 }
 
+/**
+ * Актор, от имени которого выполняется команда: id профиля из активной сессии.
+ * Use case не знает, откуда он взялся, — сессию разрешает IPC-граница.
+ */
+export interface CatalogActor {
+  profileId: string;
+}
+
+const AUDIT_ACTIONS = {
+  created: 'property.create',
+  updated: 'property.update',
+  archived: 'property.archive',
+  restored: 'property.restore',
+} as const;
+
+function auditAction(operation: keyof typeof AUDIT_ACTIONS): string {
+  return AUDIT_ACTIONS[operation];
+}
+
 export interface CreatePropertyInput {
   typeId: string;
   label: string;
@@ -61,10 +80,10 @@ export interface ListPropertiesFilter {
 }
 
 export interface Catalog {
-  createProperty(input: CreatePropertyInput): PropertyRecord;
-  updateProperty(input: UpdatePropertyInput): PropertyRecord;
-  archiveProperty(id: string): PropertyRecord;
-  restoreProperty(id: string): PropertyRecord;
+  createProperty(actor: CatalogActor, input: CreatePropertyInput): PropertyRecord;
+  updateProperty(actor: CatalogActor, input: UpdatePropertyInput): PropertyRecord;
+  archiveProperty(actor: CatalogActor, id: string): PropertyRecord;
+  restoreProperty(actor: CatalogActor, id: string): PropertyRecord;
   getProperty(id: string): PropertyRecord;
   listProperties(filter?: ListPropertiesFilter): PropertyRecord[];
 
@@ -132,6 +151,7 @@ function typeSortOrder(value: unknown): number {
 
 function recordProperty(
   deps: CatalogDeps,
+  actor: CatalogActor,
   property: Property,
   operation: 'created' | 'updated' | 'archived' | 'restored',
 ): void {
@@ -141,6 +161,14 @@ function recordProperty(
     entityId: property.id,
     operation,
     payload: { label: property.label, typeId: property.typeId, status: property.status },
+  });
+  // Аудит — от профиля из сессии (INV-17): «кто» и «что» в одной транзакции.
+  deps.recorder.recordAudit({
+    profileId: actor.profileId,
+    action: auditAction(operation),
+    entityType: 'property',
+    entityId: property.id,
+    details: { typeId: property.typeId, status: property.status },
   });
 }
 
@@ -189,17 +217,21 @@ export function createCatalogService(
     return type;
   };
 
-  const setStatus = (current: PropertyRecord, status: PropertyStatus): PropertyRecord =>
+  const setStatus = (
+    actor: CatalogActor,
+    current: PropertyRecord,
+    status: PropertyStatus,
+  ): PropertyRecord =>
     withTransaction(db, () => {
       if (current.status === status) return current;
       const next: Property = { ...current, status };
       repo.updateProperty(next);
-      recordProperty(deps, next, status === 'archived' ? 'archived' : 'restored');
+      recordProperty(deps, actor, next, status === 'archived' ? 'archived' : 'restored');
       return repo.findProperty(next.id) ?? { ...next, typeName: current.typeName };
     });
 
   return {
-    createProperty(input) {
+    createProperty(actor, input) {
       const property: Property = {
         id: uuidv7(),
         typeId: requiredText(input.typeId, 'Тип объекта', 100),
@@ -214,12 +246,12 @@ export function createCatalogService(
       return withTransaction(db, () => {
         const type = requireActiveType(property.typeId);
         repo.insertProperty(property);
-        recordProperty(deps, property, 'created');
+        recordProperty(deps, actor, property, 'created');
         return repo.findProperty(property.id) ?? { ...property, typeName: type.name };
       });
     },
 
-    updateProperty(input) {
+    updateProperty(actor, input) {
       return withTransaction(db, () => {
         const current = requireProperty(input.id);
         const next: Property = {
@@ -253,17 +285,17 @@ export function createCatalogService(
           next.note !== current.note;
         if (!changed) return current;
         repo.updateProperty(next);
-        recordProperty(deps, next, 'updated');
+        recordProperty(deps, actor, next, 'updated');
         return repo.findProperty(next.id) ?? { ...next, typeName: current.typeName };
       });
     },
 
-    archiveProperty(id) {
-      return setStatus(requireProperty(id), 'archived');
+    archiveProperty(actor, id) {
+      return setStatus(actor, requireProperty(id), 'archived');
     },
 
-    restoreProperty(id) {
-      return setStatus(requireProperty(id), 'active');
+    restoreProperty(actor, id) {
+      return setStatus(actor, requireProperty(id), 'active');
     },
 
     getProperty(id) {

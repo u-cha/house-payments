@@ -14,6 +14,7 @@ export function createCatalog(db: AppDatabase, deps: CatalogDeps): Catalog {
 
 export type {
   Catalog,
+  CatalogActor,
   CatalogDeps,
   CreatePropertyInput,
   CreatePropertyTypeInput,

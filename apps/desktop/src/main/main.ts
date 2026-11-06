@@ -102,7 +102,7 @@ void app.whenReady().then(() => {
   registerPing();
   registerApp(() => void quit.request());
   registerAuth(database, { recorder }, sessions);
-  registerCatalog(database, { recorder });
+  registerCatalog(database, { recorder }, sessions);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
