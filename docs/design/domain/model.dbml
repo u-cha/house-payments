@@ -41,17 +41,29 @@ Table setting {
   Note: 'Пользовательские настройки: тема, напоминания, шифрование, единицы.'
 }
 
+Table property_type {
+  id text [pk]
+  name text [not null]
+  name_key text [not null, unique]
+  sort_order integer [not null, default: 100]
+  is_active boolean [not null, default: true]
+  created_at text [not null]
+
+  Note: 'Редактируемый справочник типов: name_key хранит название в нижнем регистре, поэтому «Квартира» и «квартира» — один тип.'
+}
+
 Table property {
   id text [pk]
-  kind text [not null]
+  type_id text [not null]
   label text [not null]
   address text [not null]
   area_m2 numeric(10,2)
   share_bp integer [not null, default: 10000]
   note text
+  status text [not null, default: 'active']
   created_at text [not null]
 
-  Note: 'Помещение: квартира, дом или машиноместо; share_bp — доля в базисных пунктах.'
+  Note: 'Объект учёта (в интерфейсе «объект»); status active/archived, архив не удаляет историю.'
 }
 
 Table supplier {
@@ -402,6 +414,7 @@ Table schema_version {
   Note: 'Применённые миграции; только вперёд, откат — из резервной копии (INV-20).'
 }
 
+Ref: property.type_id > property_type.id
 Ref: account.property_id > property.id
 Ref: account.supplier_id > supplier.id
 Ref: service.supplier_id > supplier.id

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createEventRecorder, openDataFile, type AppDatabase } from './infrastructure/db/index.js';
 import { registerApp } from './ipc/app.js';
 import { registerAuth } from './ipc/auth.js';
+import { registerCatalog } from './ipc/catalog.js';
 import { registerPing } from './ipc/ping.js';
 import { createQuitController } from './lifecycle.js';
 import { InMemorySessionStore } from './modules/identity/index.js';
@@ -101,6 +102,7 @@ void app.whenReady().then(() => {
   registerPing();
   registerApp(() => void quit.request());
   registerAuth(database, { recorder }, sessions);
+  registerCatalog(database, { recorder });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
