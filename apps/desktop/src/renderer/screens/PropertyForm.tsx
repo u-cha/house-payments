@@ -220,7 +220,7 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
 
         <div className="field">
           <label htmlFor="property-typeId">Тип объекта</label>
-          <div className="type-row">
+          <div className="type-line">
             <Select
               id="property-typeId"
               name="typeId"

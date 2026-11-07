@@ -112,7 +112,9 @@ export function Types() {
                   <span className="name">{type.name}</span>
                   <span className="type-usage-wrap">
                     {used === 0 ? (
-                      <span className="type-unused">Не используется</span>
+                      <span className="type-unused" aria-hidden="true">
+                        —
+                      </span>
                     ) : (
                       <button
                         type="button"

@@ -1060,7 +1060,7 @@ button {
   font-size: 13px;
 }
 
-.type-row .select {
+.type-line .select {
   flex: 1;
 }
 
@@ -1086,7 +1086,7 @@ button {
   gap: 14px;
 }
 
-.type-row {
+.type-line {
   display: flex;
   gap: 8px;
 }
