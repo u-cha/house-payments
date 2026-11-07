@@ -1,23 +1,25 @@
-# CI тестов проекта: проверки документации и тесты проверок.
-# Решение и границы — docs/design/architecture/adr/0016-ci-triggers-on-pull-request.md.
+# CI проекта: проверки на трёх ОС и артефакты установщиков (гейт V3).
+# Решение — docs/design/architecture/adr/0022-ci-matrix-and-latest-artifacts.md
+# (уточняет триггеры ADR-0016); имя артефакта и «последний» — ADR-0018/ADR-0019.
 #
-# Сейчас job один и запускается на Ubuntu: тестируются артефакты документации,
-# которые от ОС не зависят. Матрица macOS/Windows/Linux (R-03) добавляется вместе
-# с кодом приложения в E-01/E-12, а фильтры по путям — вместе со сборкой
-# установщиков, чтобы правка docs/ её не запускала (ADR-0013, ADR-0014).
+# Триггеры: PR в main — обязательный `check` (ruleset protect-main); push в main —
+# публикация артефактов latest-* после merge; workflow_dispatch — ручная проверка
+# ветки (`gh workflow run ci.yml --ref <ветка>`), тоже собирает артефакты, чтобы
+# `pnpm app:latest --run <id>` можно было проверить до merge. «Последним» для
+# ручной проверки остаётся только зелёный прогон main (ADR-0018).
+#
+# Матрица macOS/Windows/Linux проверяет нативную зависимость better-sqlite3 (R-03):
+# на каждой ОС она пересобирается под Electron и загружается в Electron.
 name: CI
 
 on:
-  # Только PR в main: push-триггер отменён (ADR-0016), иначе каждый пуш в ветку
-  # с открытым PR давал два прогона на один коммит — push и pull_request.
   pull_request:
     branches: [main]
-  # Ручной запуск — для ветки без PR и для проверки самого workflow:
-  # gh workflow run ci.yml --ref <ветка>
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # Новый пуш в ту же ветку отменяет предыдущий прогон: проверяем последний коммит.
-# Для pull_request github.ref — refs/pull/N/merge, то есть группа на один PR.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,34 +28,166 @@ concurrency:
 permissions:
   contents: read
 
+# Команды одинаковы на трёх ОС: на Windows-раннере шаги идут в Git Bash.
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  check:
-    # Имя job = контекст обязательной проверки в ruleset protect-main (ADR-0015).
-    name: check
+  # Правка только docs/ не запускает тяжёлые сборки. Решение отдельным job: path-
+  # фильтры уровня workflow оставили бы обязательный `check` в ожидании.
+  changes:
+    name: changed paths
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - id: filter
+        name: Определить, меняется ли код приложения
+        run: |
+          set -euo pipefail
+          code=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > changed.txt
+            code=false
+            if grep -Eq '^(apps/|packages/|\.github/workflows/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)' changed.txt; then
+              code=true
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  # Матрица трёх ОС: install, пересборка better-sqlite3 под Electron (R-03),
+  # lint, typecheck, test, build, e2e smoke.
+  verify:
+    name: verify (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/cache@v4
         with:
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        # Версия берётся из поля packageManager в корневом package.json.
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+            .cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
       # E2E запускает Electron: на Ubuntu нужен X-сервер (xvfb) и GTK.
+      - name: Install Electron runtime for e2e (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0t64 libnss3 libasound2t64
+      - name: Rebuild better-sqlite3 for Electron (R-03)
+        run: pnpm --filter @house-payments/desktop rebuild:native
+      - name: Load native dependency in Electron (R-03)
+        run: |
+          ELECTRON_RUN_AS_NODE=1 pnpm --filter @house-payments/desktop exec electron -e "
+          const Database = require('better-sqlite3');
+          const db = new Database(':memory:');
+          if (db.prepare('select 1 as x').get().x !== 1) throw new Error('better-sqlite3: запрос не выполнен');
+          console.log('better-sqlite3 загружен в Electron', process.versions.electron);
+          "
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm --filter @house-payments/desktop build
+      - name: E2E smoke
+        if: runner.os != 'Linux'
+        run: pnpm test:e2e
+      - name: E2E smoke (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum pnpm test:e2e
+
+  # Обязательный контекст ruleset protect-main (ADR-0015/ADR-0016): единственный
+  # прогон `pnpm check` и агрегатор итога матрицы. Красная матрица не может дать
+  # зелёный `check`; при правке только docs/ матрица пропускается — `check` зелёный.
+  check:
+    name: check
+    needs: [changes, verify]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Итог матрицы
+        run: |
+          echo "changes=${{ needs.changes.result }} verify=${{ needs.verify.result }}"
+          case "${{ needs.changes.result }}" in success) ;; *) echo "::error::changes неуспешен"; exit 1 ;; esac
+          case "${{ needs.verify.result }}" in success | skipped) ;; *) echo "::error::матрица ОС красная"; exit 1 ;; esac
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Install Electron runtime for e2e
         run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0t64 libnss3 libasound2t64
-
       - name: Validate artifacts and run tests
         run: xvfb-run --auto-servernum pnpm check
+
+  # Артефакты установщиков трёх ОС под фиксированными именами latest-* (ADR-0018).
+  # Публикуются только когда матрица и обязательный `check` зелёные: красный прогон
+  # не публикует ничего. Один прогон — один артефакт на ОС; накопление ограничено
+  # retention-days, старые прогоны `pnpm app:latest` не читает.
+  artifacts:
+    name: artifacts (${{ matrix.os }})
+    needs: [check, verify]
+    if: >-
+      needs.verify.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, dist: 'dist:mac', artifact: house-payments-mac-latest }
+          - { os: windows-2022, dist: 'dist:win', artifact: house-payments-win-latest }
+          - { os: ubuntu-24.04, dist: 'dist:linux', artifact: house-payments-linux-latest }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+            .cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Rebuild better-sqlite3 for Electron (R-03)
+        run: pnpm --filter @house-payments/desktop rebuild:native
+      - name: Build installer
+        run: pnpm --filter @house-payments/desktop ${{ matrix.dist }}
+      - name: Publish latest installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release/*
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
