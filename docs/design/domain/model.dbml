@@ -69,12 +69,19 @@ Table property {
 Table supplier {
   id text [pk]
   name text [not null]
+  name_key text [not null]
   kind text [not null]
   contacts text
   note text
+  is_active boolean [not null, default: true]
   created_at text [not null]
+  updated_at text [not null]
 
-  Note: 'Поставщик услуг: управляющая компания, ТСЖ, ресурсоснабжающая организация.'
+  indexes {
+    (name_key)
+  }
+
+  Note: 'Поставщик услуг: УК, ТСЖ, РСО. name_key = trim + нижний регистр; индекс НЕ unique — дубли разрешены и лишь предупреждаются в UI. is_active = 0 — архив без физического удаления; счета и история сохраняются.'
 }
 
 Table account {
@@ -94,7 +101,7 @@ Table account {
     (property_id, supplier_id, number) [unique]
   }
 
-  Note: 'Лицевой счёт у поставщика для помещения; cabinet_url/cabinet_note — ссылка на личный кабинет и памятка по передаче показаний (FR-19).'
+  Note: 'Лицевой счёт у поставщика для помещения; номер уникален в паре (property_id, supplier_id). cabinet_url/cabinet_note — ссылка на личный кабинет и памятка по передаче показаний/оплате (FR-19). closed_on — закрытие: новые документы по счёту запрещены (INV-12), закрытие при ненулевом балансе невозможно.'
 }
 
 Table service {
@@ -103,7 +110,11 @@ Table service {
   name text [not null]
   unit text [not null]
   category text
+  is_active boolean [not null, default: true]
   created_at text [not null]
+  updated_at text [not null]
+
+  Note: 'Услуга общего справочника; unit — код m3|gcal|kwh|person|m2|month|piece (подписи: м³, Гкал, кВт·ч, чел., м², мес., шт.). is_active = 0 — архив без физического удаления: начисления и тарифы сохраняют историю. supplier_id необязателен и только сужает выбор в E-04.'
 }
 
 Table tariff {
@@ -120,7 +131,7 @@ Table tariff {
     (service_id, valid_from) [unique]
   }
 
-  Note: 'Тариф версионируется: старый не перезаписывается, а закрывается датой valid_to.'
+  Note: 'Тариф версионируется: старый не перезаписывается, а закрывается датой valid_to = valid_from нового − 1 день. unit — снимок единицы услуги на момент тарифа. price_minor — копейки (ADR-0002); пересечение периодов одной услуги запрещено (INV-04).'
 }
 
 Table meter {
