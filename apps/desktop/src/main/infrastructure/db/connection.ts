@@ -15,9 +15,17 @@ export type AppDatabase = Database.Database;
  */
 export function openConnection(file: string, busyTimeoutMs: number = BUSY_TIMEOUT_MS): AppDatabase {
   const db = new Database(file);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.pragma(`busy_timeout = ${Math.trunc(busyTimeoutMs)}`);
-  db.pragma('synchronous = NORMAL');
-  return db;
+  // Если файл — не база SQLite, первый pragma бросает SQLITE_NOTADB. Без close()
+  // дескриптор остаётся открытым: на Linux/macOS это незаметно, а на Windows файл
+  // остаётся заблокированным и его нельзя удалить (ловит матрица CI, ADR-0022).
+  try {
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    db.pragma(`busy_timeout = ${Math.trunc(busyTimeoutMs)}`);
+    db.pragma('synchronous = NORMAL');
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
