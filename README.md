@@ -115,7 +115,7 @@ pnpm diagrams:examples  # то же для docs/design/_examples/
 Проверки запускаются на каждый pull request в `main`: workflow
 [ci.yml](.github/workflows/ci.yml). Обязательный контекст `check` (ruleset
 `protect-main`) ставится один раз и всегда: он выполняет `pnpm check` на Ubuntu
-и падает, если матрица ОС красная. Матрица проверяет `macos-14`, `windows-2022` и
+и падает, если матрица ОС красная. Матрица проверяет `macos-15`, `windows-2022` и
 `ubuntu-24.04`: install, пересборку `better-sqlite3` под Electron, загрузку
 нативной зависимости в Electron, lint, typecheck, test, build и e2e smoke.
 Правка только `docs/` тяжёлые сборки не запускает, но `check` остаётся зелёным.

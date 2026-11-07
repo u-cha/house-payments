@@ -73,7 +73,7 @@ merge в `main`. Уточняет п. 1 [ADR-0016](0016-ci-triggers-on-pull-requ
 ### 4. `push` в `main` + матрица `verify` + агрегатор `check` + job-фильтр путей (выбран)
 
 - `changes` — отдельный дешёвый job решает по diff PR, менялся ли код.
-- `verify` — матрица `ubuntu-24.04`/`macos-14`/`windows-2022`: install,
+- `verify` — матрица `ubuntu-24.04`/`macos-15`/`windows-2022`: install,
   пересборка и загрузка нативной зависимости в Electron, lint, typecheck, test,
   build, e2e smoke. При правке только `docs/` пропускается.
 - `check` — всегда запускается, выполняет `pnpm check` на Ubuntu и падает, если
@@ -103,7 +103,7 @@ merge в `main`. Уточняет п. 1 [ADR-0016](0016-ci-triggers-on-pull-requ
    `push` в `main`; остальные решения ADR-0016 (job `check`, опрос
    `scripts/ci-status.mjs`, права `contents: read`, `concurrency`, без секретов)
    сохраняются.
-2. **Матрица трёх ОС.** `verify` на `ubuntu-24.04`, `macos-14` (arm64),
+2. **Матрица трёх ОС.** `verify` на `ubuntu-24.04`, `macos-15` (arm64),
    `windows-2022` (x64) выполняет `pnpm install --frozen-lockfile`, пересборку
    `better-sqlite3` под Electron (`rebuild:native`, R-03), загрузку нативной
    зависимости в Electron (`ELECTRON_RUN_AS_NODE=1 electron -e …`), `lint`,

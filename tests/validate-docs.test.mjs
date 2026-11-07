@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   parseDbml,
@@ -304,7 +305,7 @@ test('validateRepository: пустой каталог даёт ошибки об
 });
 
 test('validateRepository: реальный репозиторий согласован', () => {
-  const root = new URL('..', import.meta.url).pathname;
+  const root = fileURLToPath(new URL('..', import.meta.url));
   const result = validateRepository(root);
   assert.deepEqual(result.errors, [], `\n${formatReport(result)}`);
   assert.ok(result.stats.tables >= 23, 'в модели должно быть ≥ 23 таблиц');
