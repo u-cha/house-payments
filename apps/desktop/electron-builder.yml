@@ -72,6 +72,9 @@ nsis:
 # maintainer нужен dpkg; до релиза 1.0 адрес тестовый (R-04, R-08).
 linux:
   category: Office
+  # Имя пакета — @house-payments/desktop; для linux executableName должен быть
+  # безопасным для путей, иначе AppImage не собирается (ловит CI, ADR-0022).
+  executableName: house-payments
   target:
     - target: AppImage
       arch:
