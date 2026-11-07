@@ -97,13 +97,7 @@ export function Properties() {
           <h1 id="properties-title">Объекты</h1>
           <p>Квартиры, дома, машиноместа и участки, которыми вы владеете.</p>
         </div>
-        <button
-          type="button"
-          className="btn"
-          disabled={types.length === 0}
-          data-add-property
-          onClick={openCreate}
-        >
+        <button type="button" className="btn" data-add-property onClick={openCreate}>
           <Icon name="plus" />
           Добавить объект
         </button>
@@ -176,7 +170,6 @@ export function Properties() {
           status={status}
           filtered={filtered}
           onAdd={openCreate}
-          addDisabled={types.length === 0}
           onReset={() => {
             setSearch('');
             setTypeFilter('');
@@ -249,13 +242,11 @@ function EmptyState({
   status,
   filtered,
   onAdd,
-  addDisabled,
   onReset,
 }: {
   status: PropertyStatus;
   filtered: boolean;
   onAdd(): void;
-  addDisabled: boolean;
   onReset(): void;
 }) {
   if (filtered) {
@@ -281,7 +272,7 @@ function EmptyState({
     <div className="empty">
       <h2>Пока нет объектов</h2>
       <p>Добавьте первый объект — квартиру, дом, машиноместо или участок.</p>
-      <button type="button" className="btn" onClick={onAdd} disabled={addDisabled}>
+      <button type="button" className="btn" onClick={onAdd}>
         <Icon name="plus" />
         Добавить объект
       </button>

@@ -46,7 +46,10 @@ function auditAction(operation: keyof typeof AUDIT_ACTIONS): string {
 }
 
 export interface CreatePropertyInput {
-  typeId: string;
+  /** Существующий тип; не нужен, если тип создаётся вместе с объектом. */
+  typeId?: string | undefined;
+  /** Черновик типа из формы: создаётся в транзакции сохранения объекта. */
+  newTypeName?: string | undefined;
   label: string;
   address: string;
   areaM2?: number | null | undefined;
@@ -57,6 +60,8 @@ export interface CreatePropertyInput {
 export interface UpdatePropertyInput {
   id: string;
   typeId?: string | undefined;
+  /** Черновик типа из формы: создаётся в транзакции сохранения объекта. */
+  newTypeName?: string | undefined;
   label?: string | undefined;
   address?: string | undefined;
   areaM2?: number | null | undefined;
@@ -90,6 +95,8 @@ export interface Catalog {
 
   createPropertyType(input: CreatePropertyTypeInput): PropertyTypeRecord;
   updatePropertyType(input: UpdatePropertyTypeInput): PropertyTypeRecord;
+  /** Удаляет тип, только если им не пользуется ни один объект (архивные тоже считаются). */
+  deletePropertyType(actor: CatalogActor, id: string): PropertyTypeRecord;
   listPropertyTypes(input?: { includeArchived?: boolean | undefined }): PropertyTypeRecord[];
 }
 
@@ -176,7 +183,7 @@ function recordProperty(
 function recordPropertyType(
   deps: CatalogDeps,
   type: PropertyType,
-  operation: 'created' | 'updated',
+  operation: 'created' | 'updated' | 'deleted',
 ): void {
   deps.recorder.recordChange({
     entityType: 'property_type',
@@ -231,21 +238,99 @@ export function createCatalogService(
       return repo.findProperty(next.id) ?? { ...next, typeName: current.typeName };
     });
 
+  /**
+   * Тип для записи объекта. Черновик из формы (`newTypeName`) создаётся в этой же
+   * транзакции: закрытие листа без сохранения или ошибка записи не оставляют тип
+   * в справочнике. Одноимённый тип переиспользуется, скрытый — возвращается в выбор.
+   */
+  const resolvePropertyType = (
+    typeId: string | undefined,
+    newTypeName: string | undefined,
+  ): PropertyTypeRecord => {
+    if (newTypeName !== undefined) {
+      const name = normalizeTypeName(
+        requiredText(newTypeName, 'Название типа', MAX_TYPE_NAME_LENGTH),
+      );
+      const existing = repo.findPropertyTypeByName(name);
+      if (existing !== undefined) {
+        if (existing.isActive) return existing;
+        const revived: PropertyTypeRecord = { ...existing, isActive: true };
+        repo.updatePropertyType(revived);
+        recordPropertyType(deps, revived, 'updated');
+        return revived;
+      }
+      const created: PropertyType = {
+        id: uuidv7(),
+        name,
+        sortOrder: DEFAULT_TYPE_SORT_ORDER,
+        isActive: true,
+        createdAt: clock.now().toISOString(),
+      };
+      repo.insertPropertyType(created);
+      recordPropertyType(deps, created, 'created');
+      return { ...created, usageCount: 0, activeCount: 0, archivedCount: 0, usedBy: [] };
+    }
+    if (typeId === undefined) throw fail('Выберите тип объекта');
+    return requireActiveType(typeId);
+  };
+
+  /**
+   * Дополняет тип сведениями об использовании: справочник показывает их в
+   * колонке «Задействован» и раскрывает список объектов по клику.
+   */
+  const withUsage = (type: PropertyTypeRecord): PropertyTypeRecord => {
+    const used = repo.listPropertiesByType(type.id);
+    return {
+      ...type,
+      usageCount: used.length,
+      activeCount: used.filter((property) => property.status === 'active').length,
+      archivedCount: used.filter((property) => property.status === 'archived').length,
+      usedBy: used.map((property) =>
+        property.status === 'archived' ? `${property.label} (в архиве)` : property.label,
+      ),
+    };
+  };
+
+  const failureInUse = (type: PropertyTypeRecord, used: PropertyRecord[]): AppError => {
+    const shown = used.slice(0, 5).map((property) => {
+      const suffix = property.status === 'archived' ? ' (в архиве)' : '';
+      return `«${property.label}»${suffix}`;
+    });
+    const rest = used.length > shown.length ? ` и ещё ${used.length - shown.length}` : '';
+    return new AppError({
+      code: 'BUSINESS_RULE',
+      message:
+        `Тип «${type.name}» используют объекты (${used.length}): ` +
+        `${shown.join(', ')}${rest}. ` +
+        'Удалить можно только тип, который не используется (архивные объекты тоже считаются).',
+      details: {
+        reason: 'TYPE_IN_USE',
+        propertyCount: used.length,
+        properties: used
+          .slice(0, 5)
+          .map((property) => ({ id: property.id, label: property.label, status: property.status })),
+      },
+      retryable: false,
+    });
+  };
+
   return {
     createProperty(actor, input) {
-      const property: Property = {
+      const values = {
         id: uuidv7(),
-        typeId: requiredText(input.typeId, 'Тип объекта', 100),
         label: requiredText(input.label, 'Название объекта', MAX_LABEL_LENGTH),
         address: requiredText(input.address, 'Адрес', MAX_ADDRESS_LENGTH),
         areaM2: areaM2(input.areaM2),
         shareBp: input.shareBp === undefined ? DEFAULT_SHARE_BP : shareBp(input.shareBp),
         note: optionalText(input.note, 'Заметка', MAX_NOTE_LENGTH),
-        status: 'active',
+        status: 'active' as const,
         createdAt: clock.now().toISOString(),
       };
       return withTransaction(db, () => {
-        const type = requireActiveType(property.typeId);
+        // Тип-черновик рождается здесь же: отказ от формы или ошибка сохранения
+        // откатывают и объект, и тип (S-05, замечание пользователя).
+        const type = resolvePropertyType(input.typeId, input.newTypeName);
+        const property: Property = { ...values, typeId: type.id };
         repo.insertProperty(property);
         recordProperty(deps, actor, property, 'created');
         return repo.findProperty(property.id) ?? { ...property, typeName: type.name };
@@ -265,12 +350,12 @@ export function createCatalogService(
             retryable: false,
           });
         }
+        const typeEdited = input.typeId !== undefined || input.newTypeName !== undefined;
         const next: Property = {
           ...current,
-          typeId:
-            input.typeId === undefined
-              ? current.typeId
-              : requiredText(input.typeId, 'Тип объекта', 100),
+          typeId: typeEdited
+            ? resolvePropertyType(input.typeId, input.newTypeName).id
+            : current.typeId,
           label:
             input.label === undefined
               ? current.label
@@ -286,7 +371,6 @@ export function createCatalogService(
               ? current.note
               : optionalText(input.note, 'Заметка', MAX_NOTE_LENGTH),
         };
-        if (next.typeId !== current.typeId) requireActiveType(next.typeId);
         const changed =
           next.typeId !== current.typeId ||
           next.label !== current.label ||
@@ -339,7 +423,7 @@ export function createCatalogService(
         }
         repo.insertPropertyType(type);
         recordPropertyType(deps, type, 'created');
-        return type;
+        return { ...type, usageCount: 0, activeCount: 0, archivedCount: 0, usedBy: [] };
       });
     },
 
@@ -358,15 +442,35 @@ export function createCatalogService(
         if (name !== current.name && repo.findPropertyTypeByName(name, current.id) !== undefined) {
           throw conflict('Тип с таким названием уже есть');
         }
-        const next: PropertyType = { ...current, name, isActive };
+        const next: PropertyTypeRecord = { ...current, name, isActive };
         repo.updatePropertyType(next);
         recordPropertyType(deps, next, 'updated');
-        return next;
+        return withUsage(next);
+      });
+    },
+
+    deletePropertyType(actor, id) {
+      return withTransaction(db, () => {
+        const type = requireType(id);
+        const used = repo.listPropertiesByType(type.id);
+        // FKs включены, поэтому без проверки SQLite дал бы непонятную ошибку:
+        // сначала объясняем, какие объекты мешают, и только потом удаляем.
+        if (used.length > 0) throw failureInUse(type, used);
+        repo.deletePropertyType(type.id);
+        recordPropertyType(deps, type, 'deleted');
+        deps.recorder.recordAudit({
+          profileId: actor.profileId,
+          action: 'property.type.delete',
+          entityType: 'property_type',
+          entityId: type.id,
+          details: { name: type.name },
+        });
+        return type;
       });
     },
 
     listPropertyTypes(input = {}) {
-      return repo.listPropertyTypes(input.includeArchived === true);
+      return repo.listPropertyTypes(input.includeArchived === true).map(withUsage);
     },
   };
 }

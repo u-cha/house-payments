@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { PropertyDto } from '../../src/shared/ipc';
 import {
+  DRAFT_TYPE_ID,
   emptyPropertyForm,
   formValuesFromProperty,
   formatAreaDisplay,
   formatSharePercent,
   isPropertyFormDirty,
+  typeInputFromForm,
   validatePropertyForm,
 } from '../../src/renderer/property-validation';
 
@@ -164,5 +166,39 @@ describe('guard несохранённых изменений формы', () =>
     expect(
       isPropertyFormDirty(snapshot, { ...snapshot, address: 'Другой адрес' }, emptyDraft),
     ).toBe(true);
+  });
+});
+
+describe('черновик нового типа в форме', () => {
+  const initial = emptyPropertyForm('type-1');
+
+  it('выбранный черновик уходит в main как имя, а не как выдуманный id', () => {
+    expect(typeInputFromForm(DRAFT_TYPE_ID, 'Гараж')).toEqual({ newTypeName: 'Гараж' });
+    expect(typeInputFromForm('type-1', null)).toEqual({ typeId: 'type-1' });
+  });
+
+  it('выбранный черновик делает форму изменённой и переживает выбор другого типа', () => {
+    expect(
+      isPropertyFormDirty(
+        initial,
+        { ...initial, typeId: DRAFT_TYPE_ID },
+        {
+          addingType: false,
+          typeName: '',
+          draftTypeName: 'Гараж',
+        },
+      ),
+    ).toBe(true);
+    expect(
+      isPropertyFormDirty(
+        initial,
+        { ...initial, typeId: 'type-1' },
+        {
+          addingType: false,
+          typeName: '',
+          draftTypeName: null,
+        },
+      ),
+    ).toBe(false);
   });
 });

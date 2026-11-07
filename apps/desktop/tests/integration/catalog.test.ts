@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CATALOG_ARCHIVE_PROPERTY_CHANNEL,
   CATALOG_CREATE_PROPERTY_CHANNEL,
+  CATALOG_CREATE_PROPERTY_TYPE_CHANNEL,
+  CATALOG_DELETE_PROPERTY_TYPE_CHANNEL,
   CATALOG_LIST_PROPERTIES_CHANNEL,
   CATALOG_LIST_PROPERTY_TYPES_CHANNEL,
   CATALOG_RESTORE_PROPERTY_CHANNEL,
@@ -422,5 +424,196 @@ describe('сессия и аудит catalog-команд (гейт V2)', () => 
       ok: true,
       data: [{ id, label: 'Карабайка 36', status: 'active' }],
     });
+  });
+});
+
+describe('тип объекта создаётся вместе с объектом (S-05)', () => {
+  it('создаёт тип-черновик в транзакции сохранения объекта', () => {
+    const property = catalog.createProperty(ACTOR, {
+      newTypeName: '  Гараж  ',
+      label: 'Гараж 3',
+      address: 'Карабайка, 36',
+    });
+
+    expect(property.typeName).toBe('гараж');
+    const type = catalog.listPropertyTypes().find((item) => item.name === 'гараж');
+    expect(type).toMatchObject({
+      id: property.typeId,
+      usageCount: 1,
+      activeCount: 1,
+      archivedCount: 0,
+      usedBy: ['Гараж 3'],
+    });
+  });
+
+  it('отказ формы и ошибка сохранения не оставляют тип в справочнике', () => {
+    const before = catalog.listPropertyTypes().length;
+    expect(
+      captureError(() =>
+        catalog.createProperty(ACTOR, {
+          newTypeName: 'Гараж',
+          label: '   ',
+          address: 'Карабайка, 36',
+        }),
+      ).code,
+    ).toBe('VALIDATION_FAILED');
+    expect(catalog.listPropertyTypes()).toHaveLength(before);
+    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('гараж');
+
+    // Ошибка внутри транзакции (слишком длинное имя типа) откатывает и тип, и объект.
+    expect(
+      captureError(() =>
+        catalog.createProperty(ACTOR, {
+          newTypeName: 'x'.repeat(61),
+          label: 'Гараж 3',
+          address: 'Карабайка, 36',
+        }),
+      ).code,
+    ).toBe('VALIDATION_FAILED');
+    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('x'.repeat(61));
+    expect(db.prepare('SELECT COUNT(*) FROM property').pluck().get()).toBe(0);
+  });
+
+  it('переиспользует одноимённый тип и возвращает скрытый вместо дубля', () => {
+    const existing = catalog.createPropertyType({ name: 'Гараж' });
+    const first = catalog.createProperty(ACTOR, {
+      newTypeName: 'ГАРАЖ',
+      label: 'Гараж 3',
+      address: 'Карабайка, 36',
+    });
+    expect(first.typeId).toBe(existing.id);
+    expect(catalog.listPropertyTypes({ includeArchived: true })).toHaveLength(6);
+
+    catalog.updatePropertyType({ id: existing.id, isActive: false });
+    const second = catalog.createProperty(ACTOR, {
+      newTypeName: 'гараж',
+      label: 'Гараж 4',
+      address: 'Карабайка, 36',
+    });
+    expect(second.typeId).toBe(existing.id);
+    expect(catalog.listPropertyTypes({ includeArchived: true })).toHaveLength(6);
+    expect(catalog.listPropertyTypes().find((type) => type.id === existing.id)).toMatchObject({
+      isActive: true,
+    });
+  });
+
+  it('создаёт тип при редактировании существующего объекта', () => {
+    const property = catalog.createProperty(ACTOR, {
+      typeId: typeId('Квартира'),
+      label: 'Карабайка 36',
+      address: 'Карабайка, 36',
+    });
+
+    const updated = catalog.updateProperty(ACTOR, {
+      id: property.id,
+      newTypeName: 'Апартаменты',
+    });
+    expect(updated).toMatchObject({ typeName: 'апартаменты' });
+    expect(catalog.listPropertyTypes().map((type) => type.name)).toContain('апартаменты');
+  });
+});
+
+describe('удаление незадействованных типов объекта', () => {
+  it('удаляет свободный тип встроенный и свой, оставляя журнал и аудит', () => {
+    const custom = catalog.createPropertyType({ name: 'Гараж' });
+
+    catalog.deletePropertyType(ACTOR, custom.id);
+    expect(
+      catalog.listPropertyTypes({ includeArchived: true }).map((type) => type.id),
+    ).not.toContain(custom.id);
+
+    const audit = db
+      .prepare('SELECT profile_id, action, entity_type, entity_id FROM audit_event')
+      .all();
+    expect(audit).toEqual([
+      {
+        profile_id: ACTOR.profileId,
+        action: 'property.type.delete',
+        entity_type: 'property_type',
+        entity_id: custom.id,
+      },
+    ]);
+    expect(
+      db
+        .prepare("SELECT operation FROM change_log WHERE entity_type = 'property_type'")
+        .pluck()
+        .all(),
+    ).toContain('deleted');
+
+    // Освободившееся имя можно занять снова.
+    expect(catalog.createPropertyType({ name: 'гараж' })).toMatchObject({ name: 'гараж' });
+
+    // Встроенный тип без объектов тоже удаляется.
+    catalog.deletePropertyType(ACTOR, typeId('Дом'));
+    expect(catalog.listPropertyTypes().map((type) => type.name)).not.toContain('дом');
+  });
+
+  it('запрещает удаление типа, которым пользуется объект, и объясняет чем', () => {
+    const apartment = catalog.createProperty(ACTOR, {
+      typeId: typeId('Квартира'),
+      label: 'Карабайка 36',
+      address: 'Карабайка, 36',
+    });
+
+    const error = captureError(() => catalog.deletePropertyType(ACTOR, apartment.typeId));
+    expect(error.code).toBe('BUSINESS_RULE');
+    expect(error.message).toContain('Карабайка 36');
+    expect(error.message).toContain('1');
+    expect(error.details).toMatchObject({
+      reason: 'TYPE_IN_USE',
+      propertyCount: 1,
+      properties: [{ id: apartment.id, label: 'Карабайка 36', status: 'active' }],
+    });
+    expect(catalog.listPropertyTypes().map((type) => type.id)).toContain(apartment.typeId);
+    expect(
+      db
+        .prepare('SELECT COUNT(*) FROM audit_event WHERE action = ?')
+        .pluck()
+        .get('property.type.delete'),
+    ).toBe(0);
+  });
+
+  it('считает архивные объекты использованием: удаление закрыто', () => {
+    const property = catalog.createProperty(ACTOR, {
+      typeId: typeId('Машиноместо'),
+      label: 'Паркинг 12',
+      address: 'Карабайка, 36',
+    });
+    catalog.archiveProperty(ACTOR, property.id);
+
+    expect(catalog.listPropertyTypes().find((type) => type.id === property.typeId)).toMatchObject({
+      usageCount: 1,
+      activeCount: 0,
+      archivedCount: 1,
+      usedBy: ['Паркинг 12 (в архиве)'],
+    });
+
+    const error = captureError(() => catalog.deletePropertyType(ACTOR, property.typeId));
+    expect(error.code).toBe('BUSINESS_RULE');
+    expect(error.message).toContain('(в архиве)');
+    expect(error.details).toMatchObject({
+      reason: 'TYPE_IN_USE',
+      propertyCount: 1,
+      properties: [{ label: 'Паркинг 12', status: 'archived' }],
+    });
+  });
+
+  it('удаляет тип по IPC-каналу и требует активную сессию', async () => {
+    type Handler = (event: unknown, input: unknown) => Promise<Record<string, unknown>>;
+    const invoke = (channel: string, input: unknown, activeSession = sessionId) =>
+      (electronMock.handlers.get(channel) as Handler)({}, { sessionId: activeSession, input });
+
+    const created = await invoke(CATALOG_CREATE_PROPERTY_TYPE_CHANNEL, { name: 'Гараж' });
+    const id = (created['data'] as { id: string }).id;
+
+    const denied = await invoke(CATALOG_DELETE_PROPERTY_TYPE_CHANNEL, id, 'unknown-token');
+    expect(denied).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
+
+    const deleted = await invoke(CATALOG_DELETE_PROPERTY_TYPE_CHANNEL, id);
+    expect(deleted).toMatchObject({ ok: true, data: null });
+    expect(catalog.listPropertyTypes().map((type) => type.id)).not.toContain(id);
+
+    const missing = await invoke(CATALOG_DELETE_PROPERTY_TYPE_CHANNEL, 'unknown');
+    expect(missing).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
   });
 });

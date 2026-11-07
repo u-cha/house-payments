@@ -25,10 +25,30 @@ export interface PropertyFormValues {
 
 export type PropertyFormErrors = Partial<Record<keyof PropertyFormValues, string>>;
 
-/** Черновик «добавляю тип»: открытая форма нового типа и введённое имя. */
+/** Черновик «добавляю тип»: открытая форма нового типа, введённое имя и выбранный черновик. */
 export interface PropertyTypeDraft {
   addingType: boolean;
   typeName: string;
+  /** Имя типа, выбранного в списке, но ещё не созданного в справочнике. */
+  draftTypeName?: string | null;
+}
+
+/**
+ * Значение списка типов для ещё не созданного типа. Настоящий id появится только
+ * после сохранения объекта: main создаёт тип в той же транзакции.
+ */
+export const DRAFT_TYPE_ID = '__draft_type__';
+
+/**
+ * Поля типа для команды сохранения: либо ссылка на существующий тип, либо имя
+ * черновика. Оба поля одновременно не отправляются.
+ */
+export function typeInputFromForm(
+  typeId: string,
+  draftTypeName: string | null,
+): { typeId: string } | { newTypeName: string } {
+  if (typeId === DRAFT_TYPE_ID && draftTypeName !== null) return { newTypeName: draftTypeName };
+  return { typeId };
 }
 
 const FORM_VALUE_KEYS: readonly (keyof PropertyFormValues)[] = [
@@ -50,7 +70,11 @@ export function isPropertyFormDirty(
   typeDraft: PropertyTypeDraft,
 ): boolean {
   if (FORM_VALUE_KEYS.some((key) => initial[key] !== current[key])) return true;
-  return typeDraft.addingType || typeDraft.typeName.trim() !== '';
+  return (
+    typeDraft.addingType ||
+    typeDraft.typeName.trim() !== '' ||
+    (typeDraft.draftTypeName ?? '').trim() !== ''
+  );
 }
 
 export interface ParsedPropertyForm {
