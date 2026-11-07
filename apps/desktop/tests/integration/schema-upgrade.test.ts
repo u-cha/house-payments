@@ -72,7 +72,7 @@ describe('миграции 005–006: name_key и нижний регистр в
         .prepare('SELECT version FROM schema_version ORDER BY version')
         .pluck()
         .all();
-      expect(versions).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7]);
 
       const keys = upgraded
         .prepare('SELECT name, name_key FROM property_type ORDER BY name')

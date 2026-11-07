@@ -5,18 +5,22 @@ import type {
   CreateOwnerInput,
   CreatePropertyInput,
   CreatePropertyTypeInput,
+  CreateSupplierInput,
   HousePaymentsApi,
   IpcResult,
   ListPropertiesInput,
   ListPropertyTypesInput,
+  ListSuppliersInput,
   LoginInput,
   PingResult,
   ProfileDto,
   PropertyDto,
   PropertyTypeDto,
   SessionDto,
+  SupplierDto,
   UpdatePropertyInput,
   UpdatePropertyTypeInput,
+  UpdateSupplierInput,
 } from '../shared/ipc.js';
 import electron = require('electron');
 
@@ -38,6 +42,13 @@ const CHANNELS = {
   restoreProperty: 'catalog:property:restore',
   getProperty: 'catalog:property:get',
   listProperties: 'catalog:properties:list',
+  createSupplier: 'catalog:supplier:create',
+  updateSupplier: 'catalog:supplier:update',
+  archiveSupplier: 'catalog:supplier:archive',
+  restoreSupplier: 'catalog:supplier:restore',
+  getSupplier: 'catalog:supplier:get',
+  listSuppliers: 'catalog:suppliers:list',
+  findSuppliersByName: 'catalog:suppliers:find-by-name',
 } as const;
 
 const invoke = <T,>(channel: string, payload?: unknown): Promise<T> =>
@@ -73,6 +84,20 @@ const api: HousePaymentsApi = {
     invoke<IpcResult<PropertyDto>>(CHANNELS.getProperty, { sessionId, input: id }),
   listProperties: (sessionId: string, input?: ListPropertiesInput) =>
     invoke<IpcResult<PropertyDto[]>>(CHANNELS.listProperties, { sessionId, input: input ?? {} }),
+  createSupplier: (sessionId: string, input: CreateSupplierInput) =>
+    invoke<IpcResult<SupplierDto>>(CHANNELS.createSupplier, { sessionId, input }),
+  updateSupplier: (sessionId: string, input: UpdateSupplierInput) =>
+    invoke<IpcResult<SupplierDto>>(CHANNELS.updateSupplier, { sessionId, input }),
+  archiveSupplier: (sessionId: string, id: string) =>
+    invoke<IpcResult<SupplierDto>>(CHANNELS.archiveSupplier, { sessionId, input: id }),
+  restoreSupplier: (sessionId: string, id: string) =>
+    invoke<IpcResult<SupplierDto>>(CHANNELS.restoreSupplier, { sessionId, input: id }),
+  getSupplier: (sessionId: string, id: string) =>
+    invoke<IpcResult<SupplierDto>>(CHANNELS.getSupplier, { sessionId, input: id }),
+  listSuppliers: (sessionId: string, input?: ListSuppliersInput) =>
+    invoke<IpcResult<SupplierDto[]>>(CHANNELS.listSuppliers, { sessionId, input: input ?? {} }),
+  findSuppliersByName: (sessionId: string, name: string) =>
+    invoke<IpcResult<SupplierDto[]>>(CHANNELS.findSuppliersByName, { sessionId, input: name }),
   // Fire-and-forget: процесс завершится раньше, чем придёт ответ invoke.
   quit: () => {
     electron.ipcRenderer.send(CHANNELS.quit);

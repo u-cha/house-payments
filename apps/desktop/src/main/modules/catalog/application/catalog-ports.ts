@@ -1,4 +1,5 @@
 import type { Property, PropertyStatus, PropertyType } from '../domain/property.js';
+import type { Supplier, SupplierKind } from '../domain/supplier.js';
 
 /** Объект вместе с названием типа — read-model для карточки и списка. */
 export interface PropertyRecord extends Property {
@@ -17,6 +18,14 @@ export interface PropertyTypeRecord extends PropertyType {
   archivedCount: number;
   /** Названия всех использующих объектов — заполняется в списке справочника. */
   usedBy?: string[];
+}
+
+export interface SupplierFilter {
+  /** Подстрока названия без учёта регистра; trim, пустая — без поиска. */
+  query?: string;
+  kind?: SupplierKind;
+  /** По умолчанию рабочий список — без архива. */
+  includeArchived?: boolean;
 }
 
 export interface PropertyFilter {
@@ -40,4 +49,11 @@ export interface CatalogRepository {
   findPropertyTypeByName(name: string, excludeId?: string): PropertyTypeRecord | undefined;
   listPropertyTypes(includeArchived: boolean): PropertyTypeRecord[];
   deletePropertyType(id: string): void;
+
+  insertSupplier(supplier: Supplier): void;
+  updateSupplier(supplier: Supplier): void;
+  findSupplier(id: string): Supplier | undefined;
+  /** Все совпадения по name_key, включая архивные: дубли разрешены (R-13). */
+  findSuppliersByName(nameKey: string): Supplier[];
+  listSuppliers(filter: SupplierFilter): Supplier[];
 }

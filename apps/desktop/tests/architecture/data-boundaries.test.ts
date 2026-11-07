@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 // пишет чужие таблицы: только через порт или read-model владельца (§1.4).
 const MODULES = path.resolve(import.meta.dirname, '../../src/main/modules');
 const OWNED: Record<string, readonly string[]> = {
-  catalog: ['property', 'property_type'],
+  catalog: ['property', 'property_type', 'supplier'],
 };
 const KEYWORDS = new Set(['select', 'set', 'values', 'where', 'as', 'on']);
 

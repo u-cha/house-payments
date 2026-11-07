@@ -15,6 +15,13 @@ export const CATALOG_ARCHIVE_PROPERTY_CHANNEL = 'catalog:property:archive';
 export const CATALOG_RESTORE_PROPERTY_CHANNEL = 'catalog:property:restore';
 export const CATALOG_GET_PROPERTY_CHANNEL = 'catalog:property:get';
 export const CATALOG_LIST_PROPERTIES_CHANNEL = 'catalog:properties:list';
+export const CATALOG_CREATE_SUPPLIER_CHANNEL = 'catalog:supplier:create';
+export const CATALOG_UPDATE_SUPPLIER_CHANNEL = 'catalog:supplier:update';
+export const CATALOG_ARCHIVE_SUPPLIER_CHANNEL = 'catalog:supplier:archive';
+export const CATALOG_RESTORE_SUPPLIER_CHANNEL = 'catalog:supplier:restore';
+export const CATALOG_GET_SUPPLIER_CHANNEL = 'catalog:supplier:get';
+export const CATALOG_LIST_SUPPLIERS_CHANNEL = 'catalog:suppliers:list';
+export const CATALOG_FIND_SUPPLIERS_BY_NAME_CHANNEL = 'catalog:suppliers:find-by-name';
 
 export interface PingResult {
   ok: true;
@@ -80,6 +87,45 @@ export interface PropertyDto {
   note: string | null;
   status: PropertyStatus;
   createdAt: string;
+}
+
+/** Тип поставщика: УК, ТСЖ, РСО или другая организация (entities.md §2). */
+export type SupplierKind = 'uk' | 'tsj' | 'rso' | 'other';
+
+export interface SupplierDto {
+  id: string;
+  name: string;
+  /** Ключ сравнения названий: trim + нижний регистр; дубли разрешены (R-13). */
+  nameKey: string;
+  kind: SupplierKind;
+  contacts: string | null;
+  note: string | null;
+  /** false — в архиве: скрыт из выбора, но остаётся в истории. */
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListSuppliersInput {
+  /** Поиск по названию без учёта регистра. */
+  query?: string | undefined;
+  kind?: SupplierKind | undefined;
+  includeArchived?: boolean | undefined;
+}
+
+export interface CreateSupplierInput {
+  name: string;
+  kind: SupplierKind;
+  contacts?: string | null | undefined;
+  note?: string | null | undefined;
+}
+
+export interface UpdateSupplierInput {
+  id: string;
+  name?: string | undefined;
+  kind?: SupplierKind | undefined;
+  contacts?: string | null | undefined;
+  note?: string | null | undefined;
 }
 
 export interface ListPropertyTypesInput {
@@ -178,4 +224,13 @@ export interface HousePaymentsApi {
   restoreProperty(sessionId: string, id: string): Promise<IpcResult<PropertyDto>>;
   getProperty(sessionId: string, id: string): Promise<IpcResult<PropertyDto>>;
   listProperties(sessionId: string, input?: ListPropertiesInput): Promise<IpcResult<PropertyDto[]>>;
+
+  createSupplier(sessionId: string, input: CreateSupplierInput): Promise<IpcResult<SupplierDto>>;
+  updateSupplier(sessionId: string, input: UpdateSupplierInput): Promise<IpcResult<SupplierDto>>;
+  archiveSupplier(sessionId: string, id: string): Promise<IpcResult<SupplierDto>>;
+  restoreSupplier(sessionId: string, id: string): Promise<IpcResult<SupplierDto>>;
+  getSupplier(sessionId: string, id: string): Promise<IpcResult<SupplierDto>>;
+  listSuppliers(sessionId: string, input?: ListSuppliersInput): Promise<IpcResult<SupplierDto[]>>;
+  /** Дубли названий разрешены: предупреждение в UI, а не запрет (R-13). */
+  findSuppliersByName(sessionId: string, name: string): Promise<IpcResult<SupplierDto[]>>;
 }

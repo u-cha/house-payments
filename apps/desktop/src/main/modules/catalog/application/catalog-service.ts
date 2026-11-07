@@ -19,6 +19,16 @@ import {
   type PropertyStatus,
   type PropertyType,
 } from '../domain/property.js';
+import {
+  isSupplierKind,
+  supplierNameKey,
+  MAX_SUPPLIER_CONTACTS_LENGTH,
+  MAX_SUPPLIER_NAME_LENGTH,
+  MAX_SUPPLIER_NOTE_LENGTH,
+  normalizeSupplierName,
+  type Supplier,
+  type SupplierKind,
+} from '../domain/supplier.js';
 import type { CatalogRepository, PropertyRecord, PropertyTypeRecord } from './catalog-ports.js';
 
 export interface CatalogDeps {
@@ -44,6 +54,13 @@ const AUDIT_ACTIONS = {
 function auditAction(operation: keyof typeof AUDIT_ACTIONS): string {
   return AUDIT_ACTIONS[operation];
 }
+
+const SUPPLIER_AUDIT_ACTIONS = {
+  created: 'supplier.create',
+  updated: 'supplier.update',
+  archived: 'supplier.archive',
+  restored: 'supplier.restore',
+} as const;
 
 export interface CreatePropertyInput {
   /** Существующий тип; не нужен, если тип создаётся вместе с объектом. */
@@ -80,6 +97,27 @@ export interface UpdatePropertyTypeInput {
   isActive?: boolean | undefined;
 }
 
+export interface CreateSupplierInput {
+  name: string;
+  kind: SupplierKind;
+  contacts?: string | null | undefined;
+  note?: string | null | undefined;
+}
+
+export interface UpdateSupplierInput {
+  id: string;
+  name?: string | undefined;
+  kind?: SupplierKind | undefined;
+  contacts?: string | null | undefined;
+  note?: string | null | undefined;
+}
+
+export interface ListSuppliersFilter {
+  query?: string | undefined;
+  kind?: SupplierKind | undefined;
+  includeArchived?: boolean | undefined;
+}
+
 export interface ListPropertiesFilter {
   status?: PropertyStatus | undefined;
   typeId?: string | undefined;
@@ -98,6 +136,15 @@ export interface Catalog {
   /** Удаляет тип, только если им не пользуется ни один объект (архивные тоже считаются). */
   deletePropertyType(actor: CatalogActor, id: string): PropertyTypeRecord;
   listPropertyTypes(input?: { includeArchived?: boolean | undefined }): PropertyTypeRecord[];
+
+  createSupplier(actor: CatalogActor, input: CreateSupplierInput): Supplier;
+  updateSupplier(actor: CatalogActor, input: UpdateSupplierInput): Supplier;
+  archiveSupplier(actor: CatalogActor, id: string): Supplier;
+  restoreSupplier(actor: CatalogActor, id: string): Supplier;
+  getSupplier(id: string): Supplier;
+  listSuppliers(filter?: ListSuppliersFilter): Supplier[];
+  /** Все поставщики с тем же name_key: повод для предупреждения о дубле, не запрет. */
+  findSuppliersByName(name: string): Supplier[];
 }
 
 function fail(message: string): AppError {
@@ -180,6 +227,33 @@ function recordProperty(
   });
 }
 
+function recordSupplier(
+  deps: CatalogDeps,
+  actor: CatalogActor,
+  supplier: Supplier,
+  operation: 'created' | 'updated' | 'archived' | 'restored',
+): void {
+  // Контакты и заметка — персональные данные и свободный текст: в журнал не уходят.
+  deps.recorder.recordChange({
+    entityType: 'supplier',
+    entityId: supplier.id,
+    operation,
+    payload: { name: supplier.name, kind: supplier.kind, isActive: supplier.isActive },
+  });
+  deps.recorder.recordAudit({
+    profileId: actor.profileId,
+    action: SUPPLIER_AUDIT_ACTIONS[operation],
+    entityType: 'supplier',
+    entityId: supplier.id,
+    details: { kind: supplier.kind, isActive: supplier.isActive },
+  });
+}
+
+function supplierKind(value: unknown): SupplierKind {
+  if (!isSupplierKind(value)) throw fail('Тип поставщика: uk, tsj, rso или other');
+  return value;
+}
+
 function recordPropertyType(
   deps: CatalogDeps,
   type: PropertyType,
@@ -210,6 +284,21 @@ export function createCatalogService(
     if (property === undefined) throw notFound('Объект не найден');
     return property;
   };
+
+  const requireSupplier = (id: string): Supplier => {
+    const supplier = repo.findSupplier(requiredText(id, 'Идентификатор поставщика', 100));
+    if (supplier === undefined) throw notFound('Поставщик не найден');
+    return supplier;
+  };
+
+  const setSupplierActive = (actor: CatalogActor, current: Supplier, isActive: boolean): Supplier =>
+    withTransaction(db, () => {
+      if (current.isActive === isActive) return current;
+      const next: Supplier = { ...current, isActive, updatedAt: clock.now().toISOString() };
+      repo.updateSupplier(next);
+      recordSupplier(deps, actor, next, isActive ? 'restored' : 'archived');
+      return repo.findSupplier(next.id) ?? next;
+    });
 
   const requireType = (id: string): PropertyTypeRecord => {
     const type = repo.findPropertyType(requiredText(id, 'Идентификатор типа', 100));
@@ -471,6 +560,111 @@ export function createCatalogService(
 
     listPropertyTypes(input = {}) {
       return repo.listPropertyTypes(input.includeArchived === true).map(withUsage);
+    },
+
+    createSupplier(actor, input) {
+      const now = clock.now().toISOString();
+      const name = normalizeSupplierName(
+        requiredText(input.name, 'Название поставщика', MAX_SUPPLIER_NAME_LENGTH),
+      );
+      const supplier: Supplier = {
+        id: uuidv7(),
+        name,
+        nameKey: supplierNameKey(name),
+        kind: supplierKind(input.kind),
+        contacts: optionalText(input.contacts, 'Контакты', MAX_SUPPLIER_CONTACTS_LENGTH),
+        note: optionalText(input.note, 'Заметка', MAX_SUPPLIER_NOTE_LENGTH),
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      // Дубль не запрещён (R-13): вставка идёт как есть, UI предупреждает.
+      return withTransaction(db, () => {
+        repo.insertSupplier(supplier);
+        recordSupplier(deps, actor, supplier, 'created');
+        return repo.findSupplier(supplier.id) ?? supplier;
+      });
+    },
+
+    updateSupplier(actor, input) {
+      return withTransaction(db, () => {
+        const current = requireSupplier(input.id);
+        if (!current.isActive) {
+          throw new AppError({
+            code: 'BUSINESS_RULE',
+            message: 'Верните поставщика в активные, чтобы изменить его данные',
+            details: { reason: 'SUPPLIER_ARCHIVED' },
+            retryable: false,
+          });
+        }
+        const name =
+          input.name === undefined
+            ? current.name
+            : normalizeSupplierName(
+                requiredText(input.name, 'Название поставщика', MAX_SUPPLIER_NAME_LENGTH),
+              );
+        const next: Supplier = {
+          ...current,
+          name,
+          nameKey: supplierNameKey(name),
+          kind: input.kind === undefined ? current.kind : supplierKind(input.kind),
+          contacts:
+            input.contacts === undefined
+              ? current.contacts
+              : optionalText(input.contacts, 'Контакты', MAX_SUPPLIER_CONTACTS_LENGTH),
+          note:
+            input.note === undefined
+              ? current.note
+              : optionalText(input.note, 'Заметка', MAX_SUPPLIER_NOTE_LENGTH),
+        };
+        const changed =
+          next.name !== current.name ||
+          next.kind !== current.kind ||
+          next.contacts !== current.contacts ||
+          next.note !== current.note;
+        if (!changed) return current;
+        next.updatedAt = clock.now().toISOString();
+        repo.updateSupplier(next);
+        recordSupplier(deps, actor, next, 'updated');
+        return repo.findSupplier(next.id) ?? next;
+      });
+    },
+
+    archiveSupplier(actor, id) {
+      return setSupplierActive(actor, requireSupplier(id), false);
+    },
+
+    restoreSupplier(actor, id) {
+      return setSupplierActive(actor, requireSupplier(id), true);
+    },
+
+    getSupplier(id) {
+      return requireSupplier(id);
+    },
+
+    listSuppliers(filter = {}) {
+      if (filter.kind !== undefined && !isSupplierKind(filter.kind)) {
+        throw fail('Тип поставщика: uk, tsj, rso или other');
+      }
+      if (filter.includeArchived !== undefined && typeof filter.includeArchived !== 'boolean') {
+        throw fail('Признак архива: ожидается true или false');
+      }
+      if (filter.query !== undefined && typeof filter.query !== 'string') {
+        throw fail('Поиск: ожидается строка');
+      }
+      const query = filter.query === undefined ? '' : supplierNameKey(filter.query);
+      return repo.listSuppliers({
+        includeArchived: filter.includeArchived === true,
+        ...(filter.kind === undefined ? {} : { kind: filter.kind }),
+        ...(query === '' ? {} : { query }),
+      });
+    },
+
+    findSuppliersByName(name) {
+      if (typeof name !== 'string') throw fail('Название для поиска дубля: ожидается строка');
+      const nameKey = supplierNameKey(name);
+      if (nameKey === '') return [];
+      return repo.findSuppliersByName(nameKey);
     },
   };
 }
