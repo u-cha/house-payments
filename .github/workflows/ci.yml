@@ -94,13 +94,9 @@ jobs:
       - name: Rebuild better-sqlite3 for Electron (R-03)
         run: pnpm --filter @house-payments/desktop rebuild:native
       - name: Load native dependency in Electron (R-03)
-        run: |
-          ELECTRON_RUN_AS_NODE=1 pnpm --filter @house-payments/desktop exec electron -e "
-          const Database = require('better-sqlite3');
-          const db = new Database(':memory:');
-          if (db.prepare('select 1 as x').get().x !== 1) throw new Error('better-sqlite3: запрос не выполнен');
-          console.log('better-sqlite3 загружен в Electron', process.versions.electron);
-          "
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: pnpm --filter @house-payments/desktop exec electron scripts/check-native.mjs
       - name: Lint
         run: pnpm lint
       - name: Typecheck
@@ -187,7 +183,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: release/*
+          # Только установщики: рядом в release/ лежат каталоги распаковки
+          # (mac-arm64, win-unpacked, linux-unpacked) — их в артефакт не берём.
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
           if-no-files-found: error
           overwrite: true
           retention-days: 30
