@@ -32,7 +32,10 @@ pnpm bootstrap          # восстановить third_party/ и .dsh/skills/ 
 pnpm check              # validate + тесты; обязательное условие любого изменения
 pnpm sync:main          # подлить свежий origin/main перед пушем (см. §3.8)
 pnpm ci:status          # статус последнего прогона CI текущей ветки (--wait, --json)
-pnpm dist:mac           # пересобрать артефакт в release/ и напечатать путь (ADR-0019)
+pnpm app:latest         # скачать и открыть артефакт последнего зелёного main (ADR-0018)
+pnpm dist:mac           # пересобрать локальный артефакт в release/ и напечатать путь (ADR-0019)
+pnpm dist:win           # локальная сборка Windows (nsis + zip) — на Windows-машине
+pnpm dist:linux         # локальная сборка Linux (AppImage + deb) — на Linux-машине
 pnpm validate           # только проверки артефактов
 pnpm diagrams           # отрендерить .mmd/.dbml в .svg/.png (результат не коммитится)
 ```
@@ -66,7 +69,9 @@ pnpm diagrams           # отрендерить .mmd/.dbml в .svg/.png (рез
    дождаться результата `pnpm ci:status --wait`; упавший прогон чинится до merge
    (`gh run view <id> --log-failed`), после исправления — новый пуш. Ветку без PR
    проверяют вручную: `gh workflow run ci.yml --ref <ветка>`. Merge с красным CI
-   запрещён.
+   запрещён. Матрица macOS/Windows/Linux и артефакты `latest-*` публикуются только
+   с зелёных прогонов `main` под фиксированными именами (ADR-0022, ADR-0018);
+   `pnpm app:latest` скачивает последний такой артефакт в `.app-latest/`.
 8. **Свежий `main` перед каждым пушем.** Перед `git push` в ветку (в том числе
    перед первым пушем новой ветки):
 
