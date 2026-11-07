@@ -69,7 +69,7 @@ A-05 — операционное допущение, а не юридическ
    вложений; `(occurred_at)` для аудита.
 3. Уникальность — через ограничения, а не «проверка перед вставкой»:
    частичный `UNIQUE (account_id, period) WHERE status <> "void"` для квитанции,
-   частичный `UNIQUE (account_id, service_id, period) WHERE reversal_of IS NULL`
+   частичный `UNIQUE (account_id, service_type_id, period) WHERE reversal_of IS NULL`
    для начисления, `UNIQUE (meter_id, period)` для показания,
    `UNIQUE (idempotency_key)` для платежа, `UNIQUE (batch_key)` для импорта.
 4. Частичные индексы для горячих подмножеств: неоплаченные квитанции
