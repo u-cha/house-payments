@@ -31,6 +31,7 @@ const CHANNELS = {
   listPropertyTypes: 'catalog:property-type:list',
   createPropertyType: 'catalog:property-type:create',
   updatePropertyType: 'catalog:property-type:update',
+  deletePropertyType: 'catalog:property-type:delete',
   createProperty: 'catalog:property:create',
   updateProperty: 'catalog:property:update',
   archiveProperty: 'catalog:property:archive',
@@ -58,6 +59,8 @@ const api: HousePaymentsApi = {
     invoke<IpcResult<PropertyTypeDto>>(CHANNELS.createPropertyType, { sessionId, input }),
   updatePropertyType: (sessionId: string, input: UpdatePropertyTypeInput) =>
     invoke<IpcResult<PropertyTypeDto>>(CHANNELS.updatePropertyType, { sessionId, input }),
+  deletePropertyType: (sessionId: string, id: string) =>
+    invoke<IpcResult<null>>(CHANNELS.deletePropertyType, { sessionId, input: id }),
   createProperty: (sessionId: string, input: CreatePropertyInput) =>
     invoke<IpcResult<PropertyDto>>(CHANNELS.createProperty, { sessionId, input }),
   updateProperty: (sessionId: string, input: UpdatePropertyInput) =>

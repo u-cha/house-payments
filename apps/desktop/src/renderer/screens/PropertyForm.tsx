@@ -7,15 +7,16 @@ import { toUiError } from '../api';
 import {
   useArchiveProperty,
   useCreateProperty,
-  useCreatePropertyType,
   useRestoreProperty,
   useUpdateProperty,
 } from '../catalog';
 import {
+  DRAFT_TYPE_ID,
   emptyPropertyForm,
   formValuesFromProperty,
   isPropertyFormDirty,
   TYPE_NAME_MAX,
+  typeInputFromForm,
   validatePropertyForm,
   type PropertyFormErrors,
   type PropertyFormValues,
@@ -43,13 +44,15 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
   const [addingType, setAddingType] = useState(false);
   const [typeName, setTypeName] = useState('');
   const [typeError, setTypeError] = useState<string | null>(null);
+  // Тип, выбранный в форме, но ещё не созданный: справочник пополнится только
+  // при сохранении объекта, поэтому «Выйти без сохранения» ничего не оставит.
+  const [draftTypeName, setDraftTypeName] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const keepEditingRef = useRef<HTMLButtonElement>(null);
 
   const createProperty = useCreateProperty(sessionId);
   const updateProperty = useUpdateProperty(sessionId);
-  const createType = useCreatePropertyType(sessionId);
   const archive = useArchiveProperty(sessionId);
   const restore = useRestoreProperty(sessionId);
 
@@ -60,8 +63,8 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
   const title = property === undefined ? 'Новый объект' : property.label;
 
   const dirty = useMemo(
-    () => isPropertyFormDirty(initialValues, values, { addingType, typeName }),
-    [addingType, initialValues, typeName, values],
+    () => isPropertyFormDirty(initialValues, values, { addingType, typeName, draftTypeName }),
+    [addingType, draftTypeName, initialValues, typeName, values],
   );
 
   /** Закрытие по инициативе пользователя: при изменениях сначала спрашиваем. */
@@ -124,21 +127,23 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
     },
   });
 
-  const addType = async () => {
+  const addType = () => {
     const name = typeName.trim();
     if (name.length === 0) return setTypeError('Укажите название типа');
     if (name.length > TYPE_NAME_MAX) {
       return setTypeError(`Название типа: не длиннее ${TYPE_NAME_MAX} символов`);
     }
     setTypeError(null);
-    try {
-      const created = await createType.mutateAsync({ name });
-      setValues((current) => ({ ...current, typeId: created.id }));
-      setTypeName('');
-      setAddingType(false);
-    } catch (error) {
-      setTypeError(toUiError(error).message);
-    }
+    setAddingType(false);
+    setTypeName('');
+    // Одноимённый тип уже есть — выбираем его: main поступит так же при
+    // сохранении, поэтому в справочнике не появится второй «Гараж».
+    const existing = types.find((type) => type.name.toLowerCase() === name.toLowerCase());
+    setDraftTypeName(existing === undefined ? name : null);
+    setValues((current) => ({
+      ...current,
+      typeId: existing === undefined ? DRAFT_TYPE_ID : existing.id,
+    }));
   };
 
   const submit = (event: FormEvent) => {
@@ -151,7 +156,9 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
       if (first !== undefined) document.getElementById(`property-${first}`)?.focus();
       return;
     }
-    const input = result.parsed;
+    const { label, address, areaM2, shareBp, typeId } = result.parsed;
+    const typeFields = typeInputFromForm(typeId, draftTypeName);
+    const input = { label, address, areaM2, shareBp, ...typeFields };
     if (property === undefined) {
       createProperty.mutate(input, { onSuccess: onClose });
     } else {
@@ -218,11 +225,16 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
               id="property-typeId"
               name="typeId"
               value={values.typeId}
-              options={types.map((type) => ({ value: type.id, label: type.name }))}
+              placeholder="Выберите тип"
+              options={[
+                ...types.map((type) => ({ value: type.id, label: type.name })),
+                ...(draftTypeName === null ? [] : [{ value: DRAFT_TYPE_ID, label: draftTypeName }]),
+              ]}
               disabled={readOnly === true}
               invalid={errors.typeId !== undefined}
               describedBy={errors.typeId === undefined ? undefined : 'property-typeId-error'}
               onChange={(next) => {
+                if (next !== DRAFT_TYPE_ID) setDraftTypeName(null);
                 setValues((current) => ({ ...current, typeId: next }));
                 if (errors.typeId !== undefined) {
                   setErrors((current) => {
@@ -249,6 +261,14 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
             )}
           </div>
           <FieldError name="typeId" errors={errors} />
+          {types.length === 0 && draftTypeName === null ? (
+            <p className="field-hint">В справочнике нет типов — добавьте новый через «+».</p>
+          ) : null}
+          {draftTypeName === null ? null : (
+            <p className="field-hint" role="status">
+              Тип «{draftTypeName}» появится в справочнике после сохранения объекта.
+            </p>
+          )}
         </div>
 
         {addingType ? (
@@ -276,14 +296,8 @@ export function PropertyForm({ sessionId, types, property, onClose }: PropertyFo
               >
                 Отмена
               </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => void addType()}
-                disabled={createType.isPending}
-                aria-busy={createType.isPending}
-              >
-                {createType.isPending ? 'Добавление…' : 'Добавить тип'}
+              <button type="button" className="btn" onClick={addType}>
+                Добавить тип
               </button>
             </div>
             {typeError === null ? null : (

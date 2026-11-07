@@ -8,6 +8,7 @@ export const APP_QUIT_CHANNEL = 'app:quit';
 export const CATALOG_LIST_PROPERTY_TYPES_CHANNEL = 'catalog:property-type:list';
 export const CATALOG_CREATE_PROPERTY_TYPE_CHANNEL = 'catalog:property-type:create';
 export const CATALOG_UPDATE_PROPERTY_TYPE_CHANNEL = 'catalog:property-type:update';
+export const CATALOG_DELETE_PROPERTY_TYPE_CHANNEL = 'catalog:property-type:delete';
 export const CATALOG_CREATE_PROPERTY_CHANNEL = 'catalog:property:create';
 export const CATALOG_UPDATE_PROPERTY_CHANNEL = 'catalog:property:update';
 export const CATALOG_ARCHIVE_PROPERTY_CHANNEL = 'catalog:property:archive';
@@ -58,6 +59,10 @@ export interface PropertyTypeDto {
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
+  /** Сколько объектов (активных и архивных) ссылаются на тип: удаление разрешено при 0. */
+  usageCount: number;
+  /** Названия объектов, которые используют тип (до 5, архивные помечены). */
+  usedBy?: string[];
 }
 
 export interface PropertyDto {
@@ -89,7 +94,10 @@ export interface UpdatePropertyTypeInput {
 }
 
 export interface CreatePropertyInput {
-  typeId: string;
+  /** Существующий тип; не указывается, если тип создаётся вместе с объектом. */
+  typeId?: string | undefined;
+  /** Черновик типа из формы: main создаст его в той же транзакции, что и объект. */
+  newTypeName?: string | undefined;
   label: string;
   address: string;
   areaM2?: number | null | undefined;
@@ -100,6 +108,8 @@ export interface CreatePropertyInput {
 export interface UpdatePropertyInput {
   id: string;
   typeId?: string | undefined;
+  /** Черновик типа из формы: создаётся вместе с сохранением объекта. */
+  newTypeName?: string | undefined;
   label?: string | undefined;
   address?: string | undefined;
   areaM2?: number | null | undefined;
@@ -157,6 +167,7 @@ export interface HousePaymentsApi {
     sessionId: string,
     input: UpdatePropertyTypeInput,
   ): Promise<IpcResult<PropertyTypeDto>>;
+  deletePropertyType(sessionId: string, id: string): Promise<IpcResult<null>>;
   createProperty(sessionId: string, input: CreatePropertyInput): Promise<IpcResult<PropertyDto>>;
   updateProperty(sessionId: string, input: UpdatePropertyInput): Promise<IpcResult<PropertyDto>>;
   archiveProperty(sessionId: string, id: string): Promise<IpcResult<PropertyDto>>;

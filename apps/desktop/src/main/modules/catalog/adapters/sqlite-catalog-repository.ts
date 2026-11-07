@@ -31,6 +31,7 @@ interface PropertyTypeRow {
   sort_order: number;
   is_active: number;
   created_at: string;
+  usage_count: number;
 }
 
 const SELECT_PROPERTY = `
@@ -39,7 +40,12 @@ const SELECT_PROPERTY = `
   FROM property p
   JOIN property_type t ON t.id = p.type_id`;
 
-const SELECT_TYPE = 'SELECT id, name, sort_order, is_active, created_at FROM property_type';
+// Счётчик использования считается подзапросом: справочник типов небольшой,
+// а индекс property(type_id) есть — отдельный JOIN с GROUP BY не нужен.
+const SELECT_TYPE = `
+  SELECT t.id, t.name, t.sort_order, t.is_active, t.created_at,
+         (SELECT COUNT(*) FROM property p WHERE p.type_id = t.id) AS usage_count
+  FROM property_type t`;
 
 function toProperty(row: PropertyRow): PropertyRecord {
   return {
@@ -63,6 +69,7 @@ function toType(row: PropertyTypeRow): PropertyTypeRecord {
     sortOrder: row.sort_order,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
+    usageCount: row.usage_count,
   };
 }
 
@@ -131,6 +138,16 @@ export class SqliteCatalogRepository implements CatalogRepository {
     return rows.map(toProperty);
   }
 
+  listPropertiesByType(typeId: string): PropertyRecord[] {
+    const rows = this.db
+      .prepare(
+        `${SELECT_PROPERTY} WHERE p.type_id = ?
+         ORDER BY CASE p.status WHEN 'active' THEN 0 ELSE 1 END, p.label COLLATE NOCASE, p.id`,
+      )
+      .all(typeId) as PropertyRow[];
+    return rows.map(toProperty);
+  }
+
   insertPropertyType(type: PropertyType): void {
     this.db
       .prepare(
@@ -156,7 +173,7 @@ export class SqliteCatalogRepository implements CatalogRepository {
   }
 
   findPropertyType(id: string): PropertyTypeRecord | undefined {
-    const row = this.db.prepare(`${SELECT_TYPE} WHERE id = ?`).get(id) as
+    const row = this.db.prepare(`${SELECT_TYPE} WHERE t.id = ?`).get(id) as
       PropertyTypeRow | undefined;
     return row === undefined ? undefined : toType(row);
   }
@@ -164,17 +181,21 @@ export class SqliteCatalogRepository implements CatalogRepository {
   findPropertyTypeByName(name: string, excludeId?: string): PropertyTypeRecord | undefined {
     const row =
       excludeId === undefined
-        ? this.db.prepare(`${SELECT_TYPE} WHERE name_key = ?`).get(normalizeTypeName(name))
+        ? this.db.prepare(`${SELECT_TYPE} WHERE t.name_key = ?`).get(normalizeTypeName(name))
         : this.db
-            .prepare(`${SELECT_TYPE} WHERE name_key = ? AND id <> ?`)
+            .prepare(`${SELECT_TYPE} WHERE t.name_key = ? AND t.id <> ?`)
             .get(normalizeTypeName(name), excludeId);
     return row === undefined ? undefined : toType(row as PropertyTypeRow);
   }
 
   listPropertyTypes(includeArchived: boolean): PropertyTypeRecord[] {
     const sql = includeArchived
-      ? `${SELECT_TYPE} ORDER BY sort_order, name COLLATE NOCASE`
-      : `${SELECT_TYPE} WHERE is_active = 1 ORDER BY sort_order, name COLLATE NOCASE`;
+      ? `${SELECT_TYPE} ORDER BY t.sort_order, t.name COLLATE NOCASE`
+      : `${SELECT_TYPE} WHERE t.is_active = 1 ORDER BY t.sort_order, t.name COLLATE NOCASE`;
     return (this.db.prepare(sql).all() as PropertyTypeRow[]).map(toType);
+  }
+
+  deletePropertyType(id: string): void {
+    this.db.prepare('DELETE FROM property_type WHERE id = ?').run(id);
   }
 }

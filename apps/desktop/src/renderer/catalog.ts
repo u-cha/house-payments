@@ -41,10 +41,17 @@ export function useProperties(
   });
 }
 
-/** После записи инвалидируем списки и справочник — экран показывает результат main. */
+/**
+ * После записи инвалидируем списки и справочник: сохранение объекта может
+ * создать тип из черновика формы, поэтому ключа списков недостаточно.
+ */
 function useInvalidateCatalog() {
   const client = useQueryClient();
-  return () => client.invalidateQueries({ queryKey: propertyKeys.all });
+  return () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: propertyKeys.all }),
+      client.invalidateQueries({ queryKey: propertyKeys.types }),
+    ]);
 }
 
 export function useCreateProperty(sessionId: string | null) {
@@ -77,6 +84,14 @@ export function useRestoreProperty(sessionId: string | null) {
   const invalidate = useInvalidateCatalog();
   return useMutation({
     mutationFn: (id: string) => api.restoreProperty(requireSession(sessionId), id),
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useDeletePropertyType(sessionId: string | null) {
+  const invalidate = useInvalidateCatalog();
+  return useMutation({
+    mutationFn: (id: string) => api.deletePropertyType(requireSession(sessionId), id),
     onSuccess: () => invalidate(),
   });
 }

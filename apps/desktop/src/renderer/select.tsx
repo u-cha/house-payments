@@ -15,6 +15,8 @@ export interface SelectProps {
   invalid?: boolean;
   describedBy?: string | undefined;
   ariaLabel?: string;
+  /** Что показать, пока значение не выбрано (в списке нет подходящего пункта). */
+  placeholder?: string;
 }
 
 /**
@@ -34,6 +36,7 @@ export function Select({
   invalid = false,
   describedBy,
   ariaLabel,
+  placeholder,
 }: SelectProps) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -161,7 +164,7 @@ export function Select({
         }}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className="select-value">{selected?.label ?? ''}</span>
+        <span className="select-value">{selected?.label ?? placeholder ?? ''}</span>
         <svg className="select-chevron" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
         </svg>

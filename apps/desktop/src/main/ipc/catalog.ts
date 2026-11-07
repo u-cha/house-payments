@@ -4,6 +4,7 @@ import {
   CATALOG_ARCHIVE_PROPERTY_CHANNEL,
   CATALOG_CREATE_PROPERTY_CHANNEL,
   CATALOG_CREATE_PROPERTY_TYPE_CHANNEL,
+  CATALOG_DELETE_PROPERTY_TYPE_CHANNEL,
   CATALOG_GET_PROPERTY_CHANNEL,
   CATALOG_LIST_PROPERTIES_CHANNEL,
   CATALOG_LIST_PROPERTY_TYPES_CHANNEL,
@@ -42,7 +43,8 @@ const updateTypeSchema = z.object({
   isActive: z.boolean().optional(),
 });
 const createPropertySchema = z.object({
-  typeId: idSchema,
+  typeId: idSchema.optional(),
+  newTypeName: z.string().optional(),
   label: z.string(),
   address: z.string(),
   areaM2: z.number().finite().nullable().optional(),
@@ -52,6 +54,7 @@ const createPropertySchema = z.object({
 const updatePropertySchema = z.object({
   id: idSchema,
   typeId: idSchema.optional(),
+  newTypeName: z.string().optional(),
   label: z.string().optional(),
   address: z.string().optional(),
   areaM2: z.number().finite().nullable().optional(),
@@ -95,6 +98,7 @@ export interface CatalogHandlers {
   listPropertyTypes(sessionId: string, input: ListPropertyTypesInput): PropertyTypeDto[];
   createPropertyType(sessionId: string, input: CreatePropertyTypeInput): PropertyTypeDto;
   updatePropertyType(sessionId: string, input: UpdatePropertyTypeInput): PropertyTypeDto;
+  deletePropertyType(sessionId: string, id: string): null;
   createProperty(sessionId: string, input: CreatePropertyInput): PropertyDto;
   updateProperty(sessionId: string, input: UpdatePropertyInput): PropertyDto;
   archiveProperty(sessionId: string, id: string): PropertyDto;
@@ -126,6 +130,10 @@ export function createCatalogHandlers(
     updatePropertyType: (sessionId, input) => {
       authorize(sessionId);
       return catalog.updatePropertyType(input);
+    },
+    deletePropertyType: (sessionId, id) => {
+      catalog.deletePropertyType(actorFor(sessionId), id);
+      return null;
     },
     createProperty: (sessionId, input) => catalog.createProperty(actorFor(sessionId), input),
     updateProperty: (sessionId, input) => catalog.updateProperty(actorFor(sessionId), input),
@@ -164,6 +172,12 @@ export function registerCatalog(
     respond(() => {
       const { sessionId, input } = parseCommand(sessions, updateTypeSchema, value);
       return handlers.updatePropertyType(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_DELETE_PROPERTY_TYPE_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, idSchema, value);
+      return handlers.deletePropertyType(sessionId, input);
     }),
   );
   ipcMain.handle(CATALOG_CREATE_PROPERTY_CHANNEL, (_event, value: unknown) =>

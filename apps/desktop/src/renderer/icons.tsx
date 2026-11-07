@@ -1,7 +1,17 @@
 import type { ReactNode } from 'react';
 
 export type IconName =
-  'home' | 'ledger' | 'tap' | 'receipt' | 'card' | 'plus' | 'archive' | 'restore';
+  | 'home'
+  | 'ledger'
+  | 'tap'
+  | 'receipt'
+  | 'card'
+  | 'plus'
+  | 'archive'
+  | 'restore'
+  | 'book'
+  | 'chevron'
+  | 'trash';
 
 /**
  * Набор линейных иконок (вариант 2 ревью): 20×20 viewBox, штрих 1,4 px,
@@ -51,12 +61,36 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M4 4v3.5h3.5" />
     </>
   ),
+  // Справочники — книга: группа раскрывает списки типов, услуг, тарифов.
+  book: (
+    <>
+      <path d="M4 3.5h9a2 2 0 0 1 2 2V16H6a2 2 0 0 1-2-2z" />
+      <path d="M4 14a2 2 0 0 1 2-2h9" />
+    </>
+  ),
+  chevron: <path d="m6 8 4 4 4-4" />,
+  trash: (
+    <>
+      <path d="M4 6h12" />
+      <path d="M8 3.5h4" />
+      <path d="M6 6v10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6" />
+      <path d="M8.5 9v5M11.5 9v5" />
+    </>
+  ),
 };
 
-export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
+export function Icon({
+  name,
+  size = 16,
+  className,
+}: {
+  name: IconName;
+  size?: number;
+  className?: string;
+}) {
   return (
     <svg
-      className="icon"
+      className={className === undefined ? 'icon' : `icon ${className}`}
       width={size}
       height={size}
       viewBox="0 0 20 20"

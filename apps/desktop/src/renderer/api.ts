@@ -67,6 +67,8 @@ export const api = {
     sessionId: string,
     input: UpdatePropertyTypeInput,
   ): Promise<PropertyTypeDto> => unwrap(window.api.updatePropertyType(sessionId, input)),
+  deletePropertyType: (sessionId: string, id: string): Promise<null> =>
+    unwrap(window.api.deletePropertyType(sessionId, id)),
   createProperty: (sessionId: string, input: CreatePropertyInput): Promise<PropertyDto> =>
     unwrap(window.api.createProperty(sessionId, input)),
   updateProperty: (sessionId: string, input: UpdatePropertyInput): Promise<PropertyDto> =>
