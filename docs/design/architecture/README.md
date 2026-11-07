@@ -109,6 +109,7 @@ node_modules/.bin/mmdc -i docs/design/architecture/components.mmd \
 | Деньги и периоды соответствуют C-02/C-03 | `validate-docs` (`DBML_MONEY_TYPE`, `DBML_PERIOD_TYPE`) | Нет `float`/`numeric` в денежных колонках |
 | Требования связаны с модулями и решениями | `validate-docs` (`IDS_FR_UNTRACED`) | Нет FR без модуля и ADR/инварианта |
 | Имя и путь артефакта сборки совпадают с документацией | `tests/artifact-path.test.mjs` | `release/house-payments-mac-arm64-latest.dmg` в конфигурации и в README/ADR-0019/roadmap |
+| Риск в журнале без решения не проходит проверку | `scripts/validate-risks.mjs`, `tests/risks.test.mjs` | `pnpm validate` падает на риске без решения, «отложено» без триггера, дубле ID |
 
 ## 5. Границы ответственности документов
 
