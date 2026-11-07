@@ -21,6 +21,8 @@
  *   3 — не удалось получить origin/main (сеть, remote).
  */
 import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_REMOTE = 'origin';
 const DEFAULT_BRANCH = 'main';
@@ -124,7 +126,7 @@ export function syncMain({
 
 const invokedDirectly =
   process.argv[1] &&
-  new URL(import.meta.url).pathname === process.argv[1];
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   process.exit(syncMain());

@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+
 import { listDiagramSources } from '../scripts/diagram-sources.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 
 test('listDiagramSources: находит .mmd и .dbml рекурсивно', () => {
   const sources = listDiagramSources(root);

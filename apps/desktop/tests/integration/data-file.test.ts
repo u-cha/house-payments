@@ -119,4 +119,13 @@ describe('data file', () => {
     expect((error as AppError).message).not.toContain(userData);
     expect(sha256(file)).toBe(before);
   });
+
+  it('closes the handle after refusing a corrupted file', () => {
+    // На Windows незакрытый дескриптор блокирует файл: rmSync бросает EBUSY.
+    // Регрессия ловится только матрицей трёх ОС (ADR-0022).
+    const userData = tempUserDataDir();
+    writeFileSync(dataFilePath(userData), 'not a sqlite database');
+    expect(captureError(() => openDataFile(userData))).toBeInstanceOf(AppError);
+    expect(() => rmSync(userData, { recursive: true, force: true })).not.toThrow();
+  });
 });

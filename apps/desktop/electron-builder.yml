@@ -1,6 +1,8 @@
-# Черновая macOS-сборка (M0-03): неподписанный .dmg без нотаризации.
-# Единый каталог артефактов — release/ в корне репозитория (ADR-0018);
-# повторная сборка перезаписывает его, версионных подкаталогов нет.
+# Сборка приложений и установщиков (ADR-0009). Единый каталог артефактов —
+# release/ в корне репозитория (ADR-0018); повторная сборка перезаписывает его,
+# версионных подкаталогов нет. Имена файлов фиксированные, без версии, чтобы
+# ссылка на артефакт была одной и той же (ADR-0019); их проверяет
+# tests/artifact-path.test.mjs, а CI публикует как артефакты latest-* (ADR-0018).
 appId: com.housepayments.desktop
 productName: house-payments
 copyright: house-payments
@@ -18,9 +20,10 @@ files:
 asar: true
 
 # Нативные зависимости (better-sqlite3, @node-rs/argon2) — N-API: их prebuilt
-# бинарники ABI-совместимы с Electron, пересборка через node-gyp не нужна.
-# Отключаем её, чтобы сборка каждой итерации (ADR-0019) не зависела от сети и
-# записи в ~/.electron-gyp.
+# бинарники ABI-совместимы с Electron, для упаковки пересборка через node-gyp не
+# нужна. CI отдельно пересобирает better-sqlite3 под Electron на каждой ОС и
+# проверяет загрузку (R-03, ADR-0022); здесь пересборка отключена, чтобы
+# локальная сборка (ADR-0019) не зависела от сети и записи в ~/.electron-gyp.
 npmRebuild: false
 
 # Кэш скачанного Electron — внутри репозитория (каталог в .gitignore), чтобы
@@ -44,3 +47,42 @@ dmg:
   # ADR-0019: имя без версии — ссылка на артефакт одна и та же на каждой
   # итерации. Путь и имя закреплены тестом tests/artifact-path.test.mjs.
   artifactName: house-payments-mac-arm64-latest.${ext}
+
+# Windows: NSIS-установщик без прав администратора (R-04: без Authenticode) и zip
+# с готовым приложением — `pnpm app:latest` распаковывает и запускает его, не
+# требуя установки (ADR-0018). Имена без версии — как у macOS.
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+  artifactName: house-payments-win-x64-latest.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: house-payments
+
+# Linux: AppImage (универсально) и .deb для Ubuntu/Debian (R-08, ADR-0009).
+# maintainer нужен dpkg; до релиза 1.0 адрес тестовый (R-04, R-08).
+linux:
+  category: Office
+  # Имя пакета — @house-payments/desktop; для linux executableName должен быть
+  # безопасным для путей, иначе AppImage не собирается (ловит CI, ADR-0022).
+  executableName: house-payments
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  artifactName: house-payments-linux-x64-latest.${ext}
+
+deb:
+  maintainer: house-payments <maintainers@house-payments.invalid>
