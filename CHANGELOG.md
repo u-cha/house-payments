@@ -15,6 +15,13 @@
   восстанавливаются командой `pnpm bootstrap`.
 - CI тестов на GitHub Actions: job `check` запускает `pnpm check` на Ubuntu на
   каждой ветке и PR ([ADR-0015](docs/design/architecture/adr/0015-ci-tests-and-status-polling.md)).
+- Матрица CI macOS/Windows/Linux и артефакты установщиков: job `check` остаётся
+  обязательным контекстом, матрица проверяет пересборку `better-sqlite3` под
+  Electron, lint, typecheck, test, build и e2e, а `latest-*` публикуются только с
+  зелёных прогонов `main` ([ADR-0022](docs/design/architecture/adr/0022-ci-matrix-and-latest-artifacts.md)).
+- Команда `pnpm app:latest`: скачивает и открывает последний артефакт зелёного
+  `main` в `.app-latest/` без локальной сборки; локально — `pnpm dist:win` и
+  `pnpm dist:linux` рядом с `pnpm dist:mac`.
 - Скрипт `pnpm ci:status` для опроса результатов CI: ветка/коммит/PR, ожидание,
   JSON и коды выхода для цикла доработок после тестов.
 - Правило «свежий `main` перед пушем»: команда `pnpm sync:main` (fetch + merge

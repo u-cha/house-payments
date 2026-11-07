@@ -113,9 +113,14 @@ pnpm diagrams:examples  # то же для docs/design/_examples/
 ## CI и опрос результатов
 
 Проверки запускаются на каждый pull request в `main`: workflow
-[ci.yml](.github/workflows/ci.yml), job `check` — установка зависимостей и
-`pnpm check` на Ubuntu. Устройство и границы — [ADR-0016](docs/design/architecture/adr/0016-ci-triggers-on-pull-request.md);
-матрица macOS/Windows/Linux появится вместе с кодом приложения (E-01/E-12).
+[ci.yml](.github/workflows/ci.yml). Обязательный контекст `check` (ruleset
+`protect-main`) ставится один раз и всегда: он выполняет `pnpm check` на Ubuntu
+и падает, если матрица ОС красная. Матрица проверяет `macos-14`, `windows-2022` и
+`ubuntu-24.04`: install, пересборку `better-sqlite3` под Electron, загрузку
+нативной зависимости в Electron, lint, typecheck, test, build и e2e smoke.
+Правка только `docs/` тяжёлые сборки не запускает, но `check` остаётся зелёным.
+Устройство и границы — [ADR-0022](docs/design/architecture/adr/0022-ci-matrix-and-latest-artifacts.md)
+(уточняет триггеры [ADR-0016](docs/design/architecture/adr/0016-ci-triggers-on-pull-request.md)).
 Ветку без PR проверяют ручным запуском: `gh workflow run ci.yml --ref <ветка>`.
 
 ```bash
@@ -129,6 +134,22 @@ pnpm ci:status --json           # машинный вывод
 ошибка аргументов. Для упавшего прогона скрипт подсказывает
 `gh run view <id> --log-failed`. Нужен авторизованный `gh` (`gh auth status`);
 секретов скрипт не читает.
+
+### Последний запускаемый экземпляр из CI
+
+Артефакты установщиков публикуются только с зелёных прогонов `main` под
+фиксированными именами `house-payments-<os>-latest` (dmg / nsis+zip / AppImage+deb);
+красный прогон не публикует ничего ([ADR-0018](docs/design/architecture/adr/0018-latest-runnable-artifact.md)).
+Одна команда скачивает и открывает последний экземпляр без локальной сборки:
+
+```bash
+pnpm app:latest                 # последний зелёный main
+pnpm app:latest --run <id>      # конкретный прогон (например, ручной на ветке)
+pnpm app:latest --print         # только распаковать в .app-latest/ и напечатать путь
+```
+
+`.app-latest/` в `.gitignore` и перезаписывается каждым запуском: версии не
+накапливаются. Нужны сеть и авторизованный `gh`.
 
 ## Скиллы проекта (вендоренные)
 
