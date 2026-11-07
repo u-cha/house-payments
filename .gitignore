@@ -20,6 +20,8 @@ dist/
 build/
 out/
 release/
+# распакованный артефакт последнего зелёного прогона CI (`pnpm app:latest`, ADR-0018)
+.app-latest/
 
 # иконка приложения: в git — только исходный PNG; .icns генерирует electron-builder
 !apps/desktop/build/
