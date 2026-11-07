@@ -6,6 +6,7 @@
   "type": "module",
   "main": "dist/node/main/main.js",
   "description": "house-payments desktop app: Electron main, preload and renderer",
+  "homepage": "https://github.com/u-cha/house-payments",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "tsc -p tsconfig.node.json && node scripts/copy-migrations.mjs && vite build",
