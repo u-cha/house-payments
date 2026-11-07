@@ -5,11 +5,13 @@ import {
   type PropertyStatus,
   type PropertyType,
 } from '../domain/property.js';
+import type { Supplier } from '../domain/supplier.js';
 import type {
   CatalogRepository,
   PropertyFilter,
   PropertyRecord,
   PropertyTypeRecord,
+  SupplierFilter,
 } from '../application/catalog-ports.js';
 
 interface PropertyRow {
@@ -23,6 +25,18 @@ interface PropertyRow {
   note: string | null;
   status: PropertyStatus;
   created_at: string;
+}
+
+interface SupplierRow {
+  id: string;
+  name: string;
+  name_key: string;
+  kind: Supplier['kind'];
+  contacts: string | null;
+  note: string | null;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface PropertyTypeRow {
@@ -62,6 +76,25 @@ function toProperty(row: PropertyRow): PropertyRecord {
   };
 }
 
+function toSupplier(row: SupplierRow): Supplier {
+  return {
+    id: row.id,
+    name: row.name,
+    nameKey: row.name_key,
+    kind: row.kind,
+    contacts: row.contacts,
+    note: row.note,
+    isActive: row.is_active === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Экранирует метасимволы LIKE: пользователь ищет подстроку, а не шаблон. */
+function likePattern(query: string): string {
+  return `%${query.replace(/[\\%_]/g, '\\$&')}%`;
+}
+
 function toType(row: PropertyTypeRow): PropertyTypeRecord {
   return {
     id: row.id,
@@ -77,7 +110,7 @@ function toType(row: PropertyTypeRow): PropertyTypeRecord {
   };
 }
 
-/** SQLite-адаптер порта каталога: только таблицы property и property_type. */
+/** SQLite-адаптер порта каталога: таблицы property, property_type и supplier. */
 export class SqliteCatalogRepository implements CatalogRepository {
   constructor(private readonly db: AppDatabase) {}
 
@@ -201,5 +234,78 @@ export class SqliteCatalogRepository implements CatalogRepository {
 
   deletePropertyType(id: string): void {
     this.db.prepare('DELETE FROM property_type WHERE id = ?').run(id);
+  }
+
+  insertSupplier(supplier: Supplier): void {
+    this.db
+      .prepare(
+        `INSERT INTO supplier
+           (id, name, name_key, kind, contacts, note, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        supplier.id,
+        supplier.name,
+        supplier.nameKey,
+        supplier.kind,
+        supplier.contacts,
+        supplier.note,
+        supplier.isActive ? 1 : 0,
+        supplier.createdAt,
+        supplier.updatedAt,
+      );
+  }
+
+  updateSupplier(supplier: Supplier): void {
+    this.db
+      .prepare(
+        `UPDATE supplier
+         SET name = ?, name_key = ?, kind = ?, contacts = ?, note = ?, is_active = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        supplier.name,
+        supplier.nameKey,
+        supplier.kind,
+        supplier.contacts,
+        supplier.note,
+        supplier.isActive ? 1 : 0,
+        supplier.updatedAt,
+        supplier.id,
+      );
+  }
+
+  findSupplier(id: string): Supplier | undefined {
+    const row = this.db.prepare('SELECT * FROM supplier WHERE id = ?').get(id) as
+      SupplierRow | undefined;
+    return row === undefined ? undefined : toSupplier(row);
+  }
+
+  findSuppliersByName(nameKey: string): Supplier[] {
+    // Порядок стабилен для подсказки о дубле: активные и архивные вперемешку.
+    const rows = this.db
+      .prepare('SELECT * FROM supplier WHERE name_key = ? ORDER BY is_active DESC, id')
+      .all(nameKey) as SupplierRow[];
+    return rows.map(toSupplier);
+  }
+
+  listSuppliers(filter: SupplierFilter): Supplier[] {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (filter.includeArchived !== true) conditions.push('is_active = 1');
+    if (filter.kind !== undefined) {
+      conditions.push('kind = ?');
+      params.push(filter.kind);
+    }
+    if (filter.query !== undefined && filter.query !== '') {
+      conditions.push("name_key LIKE ? ESCAPE '\\'");
+      params.push(likePattern(filter.query));
+    }
+    const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
+    // name_key уже в нижнем регистре (кириллицу приводит JS, не SQLite lower()).
+    const rows = this.db
+      .prepare(`SELECT * FROM supplier${where} ORDER BY name_key, id`)
+      .all(...params) as SupplierRow[];
+    return rows.map(toSupplier);
   }
 }

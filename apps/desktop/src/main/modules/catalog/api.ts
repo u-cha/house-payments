@@ -1,4 +1,4 @@
-// Публичная точка модуля catalog (core-modules §3–§4): объекты и типы объектов.
+// Публичная точка модуля catalog (core-modules §3–§4): объекты, типы объектов и поставщики.
 // Внутренние слои (domain/application/adapters) снаружи не импортируются.
 import type { AppDatabase } from '../../infrastructure/db/connection.js';
 import { SqliteCatalogRepository } from './adapters/sqlite-catalog-repository.js';
@@ -18,8 +18,10 @@ export type {
   CatalogDeps,
   CreatePropertyInput,
   CreatePropertyTypeInput,
+  CreateSupplierInput,
   UpdatePropertyInput,
   UpdatePropertyTypeInput,
+  UpdateSupplierInput,
 } from './application/catalog-service.js';
 export type {
   PropertyFilter,
@@ -27,3 +29,4 @@ export type {
   PropertyTypeRecord,
 } from './application/catalog-ports.js';
 export type { Property, PropertyStatus, PropertyType } from './domain/property.js';
+export type { Supplier, SupplierKind } from './domain/supplier.js';

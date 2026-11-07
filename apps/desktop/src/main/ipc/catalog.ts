@@ -2,23 +2,34 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import {
   CATALOG_ARCHIVE_PROPERTY_CHANNEL,
+  CATALOG_ARCHIVE_SUPPLIER_CHANNEL,
   CATALOG_CREATE_PROPERTY_CHANNEL,
   CATALOG_CREATE_PROPERTY_TYPE_CHANNEL,
+  CATALOG_CREATE_SUPPLIER_CHANNEL,
   CATALOG_DELETE_PROPERTY_TYPE_CHANNEL,
+  CATALOG_FIND_SUPPLIERS_BY_NAME_CHANNEL,
   CATALOG_GET_PROPERTY_CHANNEL,
+  CATALOG_GET_SUPPLIER_CHANNEL,
   CATALOG_LIST_PROPERTIES_CHANNEL,
   CATALOG_LIST_PROPERTY_TYPES_CHANNEL,
+  CATALOG_LIST_SUPPLIERS_CHANNEL,
   CATALOG_RESTORE_PROPERTY_CHANNEL,
+  CATALOG_RESTORE_SUPPLIER_CHANNEL,
   CATALOG_UPDATE_PROPERTY_CHANNEL,
   CATALOG_UPDATE_PROPERTY_TYPE_CHANNEL,
+  CATALOG_UPDATE_SUPPLIER_CHANNEL,
   type CreatePropertyInput,
   type CreatePropertyTypeInput,
+  type CreateSupplierInput,
   type ListPropertiesInput,
   type ListPropertyTypesInput,
+  type ListSuppliersInput,
   type PropertyDto,
   type PropertyTypeDto,
+  type SupplierDto,
   type UpdatePropertyInput,
   type UpdatePropertyTypeInput,
+  type UpdateSupplierInput,
 } from '../../shared/ipc.js';
 import type { AppDatabase } from '../infrastructure/db/connection.js';
 import {
@@ -65,6 +76,25 @@ const listPropertiesSchema = z.object({
   status: z.enum(['active', 'archived']).optional(),
   typeId: z.string().optional(),
 });
+const supplierKindSchema = z.enum(['uk', 'tsj', 'rso', 'other']);
+const createSupplierSchema = z.object({
+  name: z.string(),
+  kind: supplierKindSchema,
+  contacts: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+const updateSupplierSchema = z.object({
+  id: idSchema,
+  name: z.string().optional(),
+  kind: supplierKindSchema.optional(),
+  contacts: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+const listSuppliersSchema = z.object({
+  query: z.string().optional(),
+  kind: supplierKindSchema.optional(),
+  includeArchived: z.boolean().optional(),
+});
 
 /**
  * Все команды каталога адресуют сессию из renderer (core-modules §3):
@@ -105,6 +135,14 @@ export interface CatalogHandlers {
   restoreProperty(sessionId: string, id: string): PropertyDto;
   getProperty(sessionId: string, id: string): PropertyDto;
   listProperties(sessionId: string, input: ListPropertiesInput): PropertyDto[];
+
+  createSupplier(sessionId: string, input: CreateSupplierInput): SupplierDto;
+  updateSupplier(sessionId: string, input: UpdateSupplierInput): SupplierDto;
+  archiveSupplier(sessionId: string, id: string): SupplierDto;
+  restoreSupplier(sessionId: string, id: string): SupplierDto;
+  getSupplier(sessionId: string, id: string): SupplierDto;
+  listSuppliers(sessionId: string, input: ListSuppliersInput): SupplierDto[];
+  findSuppliersByName(sessionId: string, name: string): SupplierDto[];
 }
 
 export function createCatalogHandlers(
@@ -146,6 +184,22 @@ export function createCatalogHandlers(
     listProperties: (sessionId, input) => {
       authorize(sessionId);
       return catalog.listProperties(input);
+    },
+    createSupplier: (sessionId, input) => catalog.createSupplier(actorFor(sessionId), input),
+    updateSupplier: (sessionId, input) => catalog.updateSupplier(actorFor(sessionId), input),
+    archiveSupplier: (sessionId, id) => catalog.archiveSupplier(actorFor(sessionId), id),
+    restoreSupplier: (sessionId, id) => catalog.restoreSupplier(actorFor(sessionId), id),
+    getSupplier: (sessionId, id) => {
+      authorize(sessionId);
+      return catalog.getSupplier(id);
+    },
+    listSuppliers: (sessionId, input) => {
+      authorize(sessionId);
+      return catalog.listSuppliers(input);
+    },
+    findSuppliersByName: (sessionId, name) => {
+      authorize(sessionId);
+      return catalog.findSuppliersByName(name);
     },
   };
 }
@@ -214,6 +268,48 @@ export function registerCatalog(
     respond(() => {
       const { sessionId, input } = parseCommand(sessions, listPropertiesSchema, value);
       return handlers.listProperties(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_CREATE_SUPPLIER_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, createSupplierSchema, value);
+      return handlers.createSupplier(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_UPDATE_SUPPLIER_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, updateSupplierSchema, value);
+      return handlers.updateSupplier(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_ARCHIVE_SUPPLIER_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, idSchema, value);
+      return handlers.archiveSupplier(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_RESTORE_SUPPLIER_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, idSchema, value);
+      return handlers.restoreSupplier(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_GET_SUPPLIER_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, idSchema, value);
+      return handlers.getSupplier(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_LIST_SUPPLIERS_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, listSuppliersSchema, value);
+      return handlers.listSuppliers(sessionId, input);
+    }),
+  );
+  ipcMain.handle(CATALOG_FIND_SUPPLIERS_BY_NAME_CHANNEL, (_event, value: unknown) =>
+    respond(() => {
+      const { sessionId, input } = parseCommand(sessions, z.string(), value);
+      return handlers.findSuppliersByName(sessionId, input);
     }),
   );
 }
