@@ -291,6 +291,11 @@ button {
 }
 
 /* Сворачиваемая группа «Справочники»: шеврон поворачивается, дети с отступом. */
+/* Группа отделена от основных разделов: «разбег» и собственная роль. */
+.nav-group-separated {
+  margin-top: 18px;
+}
+
 .nav-group .nav-chevron {
   margin-left: auto;
   color: var(--ink-faint);
@@ -725,7 +730,7 @@ button {
 .type-head,
 .type-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 260px) 132px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px) 40px;
   column-gap: 12px;
   align-items: center;
   padding: 0 8px;
@@ -753,20 +758,62 @@ button {
   padding: 12px 0;
 }
 
-.type-usage {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.type-usage-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
-  color: var(--ink-muted);
-  font-size: 11.5px;
 }
 
-.type-used-by {
+.type-unused {
   color: var(--ink-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.type-usage-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.type-usage-btn:hover,
+.type-usage-btn[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+.type-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
+}
+
+.type-popover ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.type-popover li {
+  padding: 3px 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .type-action {
@@ -774,14 +821,33 @@ button {
   justify-content: flex-end;
 }
 
-.type-action .btn {
+.type-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
   height: 28px;
-  padding: 0 10px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion),
+    border-color var(--motion);
 }
 
-.type-row .inline-confirm {
-  grid-column: 1 / -1;
-  margin: 0 0 12px;
+.type-icon-btn:hover {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.type-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ------------------------------------------------------------------ */

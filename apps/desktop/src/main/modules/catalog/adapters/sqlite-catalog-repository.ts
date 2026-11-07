@@ -69,7 +69,11 @@ function toType(row: PropertyTypeRow): PropertyTypeRecord {
     sortOrder: row.sort_order,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
+    // Счётчики по статусам и список объектов считает сервис: SQL знает только
+    // общее количество ссылок.
     usageCount: row.usage_count,
+    activeCount: 0,
+    archivedCount: 0,
   };
 }
 

@@ -268,10 +268,27 @@ export function createCatalogService(
       };
       repo.insertPropertyType(created);
       recordPropertyType(deps, created, 'created');
-      return { ...created, usageCount: 0 };
+      return { ...created, usageCount: 0, activeCount: 0, archivedCount: 0, usedBy: [] };
     }
     if (typeId === undefined) throw fail('Выберите тип объекта');
     return requireActiveType(typeId);
+  };
+
+  /**
+   * Дополняет тип сведениями об использовании: справочник показывает их в
+   * колонке «Задействован» и раскрывает список объектов по клику.
+   */
+  const withUsage = (type: PropertyTypeRecord): PropertyTypeRecord => {
+    const used = repo.listPropertiesByType(type.id);
+    return {
+      ...type,
+      usageCount: used.length,
+      activeCount: used.filter((property) => property.status === 'active').length,
+      archivedCount: used.filter((property) => property.status === 'archived').length,
+      usedBy: used.map((property) =>
+        property.status === 'archived' ? `${property.label} (в архиве)` : property.label,
+      ),
+    };
   };
 
   const failureInUse = (type: PropertyTypeRecord, used: PropertyRecord[]): AppError => {
@@ -406,7 +423,7 @@ export function createCatalogService(
         }
         repo.insertPropertyType(type);
         recordPropertyType(deps, type, 'created');
-        return { ...type, usageCount: 0 };
+        return { ...type, usageCount: 0, activeCount: 0, archivedCount: 0, usedBy: [] };
       });
     },
 
@@ -428,7 +445,7 @@ export function createCatalogService(
         const next: PropertyTypeRecord = { ...current, name, isActive };
         repo.updatePropertyType(next);
         recordPropertyType(deps, next, 'updated');
-        return next;
+        return withUsage(next);
       });
     },
 
@@ -453,20 +470,7 @@ export function createCatalogService(
     },
 
     listPropertyTypes(input = {}) {
-      return repo.listPropertyTypes(input.includeArchived === true).map((type) => {
-        if (type.usageCount === 0) return type;
-        // Справочник объясняет, почему тип нельзя удалить: показываем до пяти
-        // названий объектов, архивные помечаем.
-        return {
-          ...type,
-          usedBy: repo
-            .listPropertiesByType(type.id)
-            .slice(0, 5)
-            .map((property) =>
-              property.status === 'archived' ? `${property.label} (в архиве)` : property.label,
-            ),
-        };
-      });
+      return repo.listPropertyTypes(input.includeArchived === true).map(withUsage);
     },
   };
 }

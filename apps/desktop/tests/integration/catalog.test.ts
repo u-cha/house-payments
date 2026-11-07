@@ -437,7 +437,13 @@ describe('тип объекта создаётся вместе с объект�
 
     expect(property.typeName).toBe('гараж');
     const type = catalog.listPropertyTypes().find((item) => item.name === 'гараж');
-    expect(type).toMatchObject({ id: property.typeId, usageCount: 1, usedBy: ['Гараж 3'] });
+    expect(type).toMatchObject({
+      id: property.typeId,
+      usageCount: 1,
+      activeCount: 1,
+      archivedCount: 0,
+      usedBy: ['Гараж 3'],
+    });
   });
 
   it('отказ формы и ошибка сохранения не оставляют тип в справочнике', () => {
@@ -574,6 +580,13 @@ describe('удаление незадействованных типов объ�
       address: 'Карабайка, 36',
     });
     catalog.archiveProperty(ACTOR, property.id);
+
+    expect(catalog.listPropertyTypes().find((type) => type.id === property.typeId)).toMatchObject({
+      usageCount: 1,
+      activeCount: 0,
+      archivedCount: 1,
+      usedBy: ['Паркинг 12 (в архиве)'],
+    });
 
     const error = captureError(() => catalog.deletePropertyType(ACTOR, property.typeId));
     expect(error.code).toBe('BUSINESS_RULE');

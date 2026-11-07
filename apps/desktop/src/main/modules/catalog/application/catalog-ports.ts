@@ -11,7 +11,11 @@ export interface PropertyRecord extends Property {
  */
 export interface PropertyTypeRecord extends PropertyType {
   usageCount: number;
-  /** Названия использующих объектов — заполняется в списке справочника. */
+  /** Сколько из них активных. */
+  activeCount: number;
+  /** Сколько из них архивных (архивные тоже считают тип занятым). */
+  archivedCount: number;
+  /** Названия всех использующих объектов — заполняется в списке справочника. */
   usedBy?: string[];
 }
 

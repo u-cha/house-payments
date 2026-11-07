@@ -7,13 +7,15 @@ import { Icon } from '../icons';
 
 /**
  * Справочник типов объекта (S-04a): типы, которые выбираются в карточке объекта.
- * Удалить можно только незадействованный тип; занятый показывает, какие объекты
- * его используют, и кнопка удаления заблокирована (правило живёт в main).
+ * У занятого типа показываем только счётчик активных/архивных объектов, который
+ * раскрывает их список; корзина есть лишь у свободного типа и удаляет сразу
+ * (правило «нельзя удалить занятый» живёт в main).
  */
 export function Types() {
   const sessionId = useSession((state) => state.sessionId);
   const expireSession = useSession((state) => state.expireSession);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [openUsageId, setOpenUsageId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<ReturnType<typeof toUiError> | null>(null);
 
   const typesQuery = usePropertyTypes(sessionId);
@@ -25,6 +27,24 @@ export function Types() {
     if (unauthorized) expireSession('Сессия истекла: войдите снова');
   }, [unauthorized, expireSession]);
 
+  // Всплывающий список объектов закрывается кликом мимо и Esc.
+  useEffect(() => {
+    if (openUsageId === null) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if ((event.target as Element | null)?.closest('.type-usage-wrap') !== null) return;
+      setOpenUsageId(null);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpenUsageId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [openUsageId]);
+
   if (sessionId === null) return null;
 
   const types = typesQuery.data ?? [];
@@ -32,12 +52,13 @@ export function Types() {
 
   const remove = async (id: string) => {
     setActionError(null);
+    setPendingId(id);
     try {
       await deleteType.mutateAsync(id);
-      setConfirmId(null);
     } catch (error) {
-      setConfirmId(null);
       setActionError(toUiError(error));
+    } finally {
+      setPendingId(null);
     }
   };
 
@@ -85,70 +106,54 @@ export function Types() {
             {types.map((type) => {
               const used = type.usageCount;
               const usedBy = type.usedBy ?? [];
+              const open = openUsageId === type.id;
               return (
                 <li key={type.id} className="type-row">
                   <span className="name">{type.name}</span>
-                  <span className="type-usage">
-                    {used === 0 ? 'Не используется' : `${used} ${pluralObjects(used)}`}
-                    {usedBy.length === 0 ? null : (
-                      <span className="type-used-by" title={usedBy.join(', ')}>
-                        {usedBy.join(', ')}
-                      </span>
+                  <span className="type-usage-wrap">
+                    {used === 0 ? (
+                      <span className="type-unused">Не используется</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="type-usage-btn"
+                        aria-expanded={open}
+                        aria-controls={`type-usage-${type.id}`}
+                        onClick={() => setOpenUsageId(open ? null : type.id)}
+                      >
+                        {usageLabel(type.activeCount, type.archivedCount)}
+                      </button>
                     )}
+                    {open ? (
+                      <div
+                        id={`type-usage-${type.id}`}
+                        className="type-popover"
+                        role="dialog"
+                        aria-label={`Объекты типа «${type.name}»`}
+                      >
+                        <ul>
+                          {usedBy.map((name) => (
+                            <li key={name}>{name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </span>
                   <span className="type-action">
                     {used === 0 ? (
                       <button
                         type="button"
-                        className="btn ghost"
-                        onClick={() => {
-                          setActionError(null);
-                          setConfirmId(type.id);
-                        }}
-                      >
-                        <Icon name="trash" />
-                        Удалить
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        disabled
-                        title="Удалить тип можно, только когда им не пользуется ни один объект"
-                      >
-                        <Icon name="trash" />
-                        Удалить
-                      </button>
-                    )}
-                  </span>
-                  {confirmId === type.id ? (
-                    <div
-                      className="inline-confirm"
-                      role="group"
-                      aria-label="Подтверждение удаления типа"
-                    >
-                      <span className="grow" role="status">
-                        Удалить тип «{type.name}»? Действие необратимо.
-                      </span>
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() => setConfirmId(null)}
-                      >
-                        Отмена
-                      </button>
-                      <button
-                        type="button"
-                        className="btn danger"
+                        className="type-icon-btn"
+                        aria-label={`Удалить тип «${type.name}»`}
+                        title="Удалить тип"
                         onClick={() => void remove(type.id)}
-                        disabled={deleteType.isPending}
-                        aria-busy={deleteType.isPending}
+                        disabled={pendingId === type.id}
+                        aria-busy={pendingId === type.id}
                       >
                         <Icon name="trash" />
-                        {deleteType.isPending ? 'Удаление…' : 'Удалить'}
                       </button>
-                    </div>
-                  ) : null}
+                    ) : null}
+                  </span>
                 </li>
               );
             })}
@@ -159,12 +164,19 @@ export function Types() {
   );
 }
 
-function pluralObjects(count: number): string {
+/** «2 активных · 1 в архиве»: архивные — тоже использование, поэтому видны всегда. */
+function usageLabel(active: number, archived: number): string {
+  const parts: string[] = [];
+  if (active > 0) parts.push(`${active} ${pluralActive(active)}`);
+  if (archived > 0) parts.push(`${archived} в архиве`);
+  return parts.join(' · ');
+}
+
+function pluralActive(count: number): string {
   const mod10 = count % 10;
   const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'объект';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'объекта';
-  return 'объектов';
+  if (mod10 === 1 && mod100 !== 11) return 'активный';
+  return 'активных';
 }
 
 function TypesSkeleton() {

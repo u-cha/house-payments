@@ -42,7 +42,7 @@ export function Shell() {
       <TitleBar section={section} />
       <div className="app-body">
         <nav className="sidebar" aria-label="Разделы">
-          {SECTIONS.slice(0, 2).map((item) => (
+          {SECTIONS.map((item) => (
             <button
               key={item.label}
               type="button"
@@ -55,9 +55,10 @@ export function Shell() {
             </button>
           ))}
 
+          {/* Справочники стоят отдельной группой под разделами: их станет больше. */}
           <button
             type="button"
-            className="nav-item nav-group"
+            className="nav-item nav-group nav-group-separated"
             aria-expanded={directoriesOpen}
             aria-controls="nav-directories"
             onClick={() => setDirectoriesOpen((open) => !open)}
@@ -82,18 +83,6 @@ export function Shell() {
             </div>
           ) : null}
 
-          {SECTIONS.slice(2).map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              className="nav-item"
-              aria-current={item.label === section ? 'page' : undefined}
-              onClick={() => setSection(item.label)}
-            >
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-            </button>
-          ))}
           <div className="sidebar-foot">
             Данные хранятся
             <br />
