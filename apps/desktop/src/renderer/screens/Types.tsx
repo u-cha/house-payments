@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { ErrorBanner } from '../components';
 import { IpcError, toUiError } from '../api';
-import { useDeletePropertyType, usePropertyTypes } from '../catalog';
+import { useCreatePropertyType, useDeletePropertyType, usePropertyTypes } from '../catalog';
 import { useSession } from '../session';
 import { Icon } from '../icons';
 
@@ -17,9 +18,12 @@ export function Types() {
   const [openUsageId, setOpenUsageId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<ReturnType<typeof toUiError> | null>(null);
+  const [newName, setNewName] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
 
   const typesQuery = usePropertyTypes(sessionId);
   const deleteType = useDeletePropertyType(sessionId);
+  const createType = useCreatePropertyType(sessionId);
   const unauthorized =
     typesQuery.error instanceof IpcError && typesQuery.error.code === 'UNAUTHENTICATED';
 
@@ -50,6 +54,24 @@ export function Types() {
   const types = typesQuery.data ?? [];
   const loading = typesQuery.isLoading;
 
+  const addType = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newName.trim();
+    if (name === '' || createType.isPending) return;
+    setAddError(null);
+    try {
+      await createType.mutateAsync({ name });
+      setNewName('');
+    } catch (error) {
+      const ui = toUiError(error);
+      setAddError(
+        ui.code === 'CONFLICT'
+          ? 'Такой тип уже есть — выберите его в карточке объекта.'
+          : ui.message,
+      );
+    }
+  };
+
   const remove = async (id: string) => {
     setActionError(null);
     setPendingId(id);
@@ -69,6 +91,42 @@ export function Types() {
           <h1 id="types-title">Типы объекта</h1>
           <p>Типы, которые можно выбрать в карточке объекта. Занятый тип удалить нельзя.</p>
         </div>
+        <form className="add-type" onSubmit={(event) => void addType(event)}>
+          <div className="add-type-row">
+            <label className="visually-hidden" htmlFor="new-type-name">
+              Название нового типа
+            </label>
+            <input
+              id="new-type-name"
+              name="typeName"
+              className="input input-type-name"
+              type="text"
+              placeholder="Название типа"
+              maxLength={60}
+              autoComplete="off"
+              value={newName}
+              aria-invalid={addError === null ? undefined : true}
+              aria-describedby={addError === null ? undefined : 'new-type-error'}
+              onChange={(event) => {
+                setNewName(event.target.value);
+                setAddError(null);
+              }}
+            />
+            <button
+              type="submit"
+              className="btn"
+              disabled={newName.trim() === '' || createType.isPending}
+            >
+              <Icon name="plus" />
+              Добавить
+            </button>
+          </div>
+          {addError === null ? null : (
+            <p className="field-error" id="new-type-error" role="alert">
+              {addError}
+            </p>
+          )}
+        </form>
       </div>
       <div className="doublerule" />
 
@@ -91,7 +149,7 @@ export function Types() {
       {!loading && typesQuery.error === null && types.length === 0 ? (
         <div className="empty">
           <h2>Типов пока нет</h2>
-          <p>Новый тип создаётся в форме объекта: «+» в поле «Тип объекта».</p>
+          <p>Введите название в поле выше — тип появится в справочнике и в карточке объекта.</p>
         </div>
       ) : null}
 

@@ -727,6 +727,24 @@ button {
 /* Справочник типов объекта                                           */
 /* ------------------------------------------------------------------ */
 
+.add-type {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+
+.add-type-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.input-type-name {
+  width: 200px;
+}
+
 .type-head,
 .type-row {
   display: grid;
