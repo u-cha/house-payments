@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TitleBar } from '../components';
 import { Icon, type IconName } from '../icons';
 import { Properties } from './Properties';
+import { Suppliers } from './Suppliers';
 import { Types } from './Types';
 
 interface SectionItem {
@@ -23,7 +24,6 @@ const DIRECTORIES: SectionItem[] = [{ label: 'Типы объекта', icon: 'b
 
 const PLACEHOLDER: Record<string, string> = {
   Главная: 'Каркас навигации готов: сводка появится в следующих задачах.',
-  Поставщики: 'Раздел «Поставщики» появится вместе со справочниками (M1).',
   Квитанции: 'Раздел «Квитанции» появится вместе с квитанциями (M2).',
   Платежи: 'Раздел «Платежи» появится вместе с платежами (M2).',
 };
@@ -92,6 +92,8 @@ export function Shell() {
         <main className="content" id="main">
           {section === 'Объекты' ? (
             <Properties />
+          ) : section === 'Поставщики' ? (
+            <Suppliers />
           ) : section === 'Типы объекта' ? (
             <Types />
           ) : (

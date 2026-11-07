@@ -3,18 +3,22 @@ import type {
   CreateOwnerInput,
   CreatePropertyInput,
   CreatePropertyTypeInput,
+  CreateSupplierInput,
   IpcErrorCode,
   IpcErrorShape,
   IpcResult,
   ListPropertiesInput,
   ListPropertyTypesInput,
+  ListSuppliersInput,
   LoginInput,
   ProfileDto,
   PropertyDto,
   PropertyTypeDto,
   SessionDto,
+  SupplierDto,
   UpdatePropertyInput,
   UpdatePropertyTypeInput,
+  UpdateSupplierInput,
 } from '../shared/ipc';
 
 /** Ошибка main-процесса в renderer: поля AppError сохранены (core-modules §6). */
@@ -81,6 +85,21 @@ export const api = {
     unwrap(window.api.getProperty(sessionId, id)),
   listProperties: (sessionId: string, input?: ListPropertiesInput): Promise<PropertyDto[]> =>
     unwrap(window.api.listProperties(sessionId, input)),
+
+  createSupplier: (sessionId: string, input: CreateSupplierInput): Promise<SupplierDto> =>
+    unwrap(window.api.createSupplier(sessionId, input)),
+  updateSupplier: (sessionId: string, input: UpdateSupplierInput): Promise<SupplierDto> =>
+    unwrap(window.api.updateSupplier(sessionId, input)),
+  archiveSupplier: (sessionId: string, id: string): Promise<SupplierDto> =>
+    unwrap(window.api.archiveSupplier(sessionId, id)),
+  restoreSupplier: (sessionId: string, id: string): Promise<SupplierDto> =>
+    unwrap(window.api.restoreSupplier(sessionId, id)),
+  getSupplier: (sessionId: string, id: string): Promise<SupplierDto> =>
+    unwrap(window.api.getSupplier(sessionId, id)),
+  listSuppliers: (sessionId: string, input?: ListSuppliersInput): Promise<SupplierDto[]> =>
+    unwrap(window.api.listSuppliers(sessionId, input)),
+  findSuppliersByName: (sessionId: string, name: string): Promise<SupplierDto[]> =>
+    unwrap(window.api.findSuppliersByName(sessionId, name)),
 };
 
 export function toUiError(error: unknown): UiError {

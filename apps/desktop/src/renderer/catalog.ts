@@ -2,9 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreatePropertyInput,
   CreatePropertyTypeInput,
+  CreateSupplierInput,
+  ListSuppliersInput,
   PropertyDto,
   PropertyStatus,
+  SupplierDto,
   UpdatePropertyInput,
+  UpdateSupplierInput,
 } from '../shared/ipc';
 import { api } from './api';
 
@@ -105,5 +109,87 @@ export function useCreatePropertyType(sessionId: string | null) {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* S-06 «Поставщики»: список по признаку архива + поиск дублей названия */
+/* ------------------------------------------------------------------ */
+
+/** Ключи кэша S-06: список по признаку архива и подсказка о дубле. */
+export const supplierKeys = {
+  all: ['suppliers'] as const,
+  list: (filter: ListSuppliersInput) =>
+    [
+      'suppliers',
+      {
+        includeArchived: filter.includeArchived === true,
+        kind: filter.kind ?? null,
+        query: filter.query ?? '',
+      },
+    ] as const,
+  duplicates: (name: string) => ['suppliers', 'duplicates', name] as const,
+};
+
+/** Поиск и фильтры выполняет main; прежний список держим на экране до ответа. */
+export function useSuppliers(sessionId: string | null, filter: ListSuppliersInput) {
+  return useQuery({
+    queryKey: supplierKeys.list(filter),
+    enabled: sessionId !== null,
+    queryFn: () => api.listSuppliers(requireSession(sessionId), filter),
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * Совпадения по названию для предупреждения о дубле. Запрос живёт только пока
+ * введено непустое название: пустая строка ничего не ищет.
+ */
+export function useSupplierDuplicates(sessionId: string | null, name: string) {
+  const key = name.trim();
+  return useQuery({
+    queryKey: supplierKeys.duplicates(key.toLowerCase()),
+    enabled: sessionId !== null && key !== '',
+    queryFn: () => api.findSuppliersByName(requireSession(sessionId), key),
+  });
+}
+
+function useInvalidateSuppliers() {
+  const client = useQueryClient();
+  return () => client.invalidateQueries({ queryKey: supplierKeys.all });
+}
+
+export function useCreateSupplier(sessionId: string | null) {
+  const invalidate = useInvalidateSuppliers();
+  return useMutation({
+    mutationFn: (input: CreateSupplierInput) =>
+      api.createSupplier(requireSession(sessionId), input),
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useUpdateSupplier(sessionId: string | null) {
+  const invalidate = useInvalidateSuppliers();
+  return useMutation({
+    mutationFn: (input: UpdateSupplierInput) =>
+      api.updateSupplier(requireSession(sessionId), input),
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useArchiveSupplier(sessionId: string | null) {
+  const invalidate = useInvalidateSuppliers();
+  return useMutation({
+    mutationFn: (id: string) => api.archiveSupplier(requireSession(sessionId), id),
+    onSuccess: () => invalidate(),
+  });
+}
+
+export function useRestoreSupplier(sessionId: string | null) {
+  const invalidate = useInvalidateSuppliers();
+  return useMutation({
+    mutationFn: (id: string) => api.restoreSupplier(requireSession(sessionId), id),
+    onSuccess: () => invalidate(),
+  });
+}
+
 /** Экспорт для тестов и экранов: тип записи списка. */
 export type PropertyListRecord = PropertyDto;
+export type SupplierListRecord = SupplierDto;
