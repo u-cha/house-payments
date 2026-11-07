@@ -104,22 +104,38 @@ Table account {
   Note: 'Лицевой счёт у поставщика для помещения; номер уникален в паре (property_id, supplier_id). cabinet_url/cabinet_note — ссылка на личный кабинет и памятка по передаче показаний/оплате (FR-19). closed_on — закрытие: новые документы по счёту запрещены (INV-12), закрытие при ненулевом балансе невозможно.'
 }
 
-Table service {
+Table service_type {
   id text [pk]
-  supplier_id text
   name text [not null]
+  name_key text [not null, unique]
   unit text [not null]
   category text
   is_active boolean [not null, default: true]
   created_at text [not null]
   updated_at text [not null]
 
-  Note: 'Услуга общего справочника; unit — код m3|gcal|kwh|person|m2|month|piece (подписи: м³, Гкал, кВт·ч, чел., м², мес., шт.). is_active = 0 — архив без физического удаления: начисления и тарифы сохраняют историю. supplier_id необязателен и только сужает выбор в E-04.'
+  Note: 'Тип услуги — ресурс общего справочника: «Вода», «Тепло». name_key = trim + нижний регистр, UNIQUE: «Вода» и «вода» — один тип. unit — код m3|gcal|kwh|person|m2|month|piece (подписи: м³, Гкал, кВт·ч, чел., м², мес., шт.). is_active = 0 — архив без физического удаления: счётчики, начисления и услуги поставщиков сохраняют историю.'
+}
+
+Table supplier_service {
+  id text [pk]
+  supplier_id text [not null]
+  service_type_id text [not null]
+  is_active boolean [not null, default: true]
+  note text
+  created_at text [not null]
+  updated_at text [not null]
+
+  indexes {
+    (supplier_id, service_type_id) [unique]
+  }
+
+  Note: 'Услуга поставщика: «Вода от РСО Лютик». Пара supplier_id + service_type_id уникальна; у услуги своя история тарифов. is_active = 0 — архив без физического удаления: тарифы и начисления сохраняют историю.'
 }
 
 Table tariff {
   id text [pk]
-  service_id text [not null]
+  supplier_service_id text [not null]
   price_minor integer [not null]
   unit text [not null]
   valid_from text [not null]
@@ -128,28 +144,29 @@ Table tariff {
   created_at text [not null]
 
   indexes {
-    (service_id, valid_from) [unique]
+    (supplier_service_id, valid_from) [unique]
   }
 
-  Note: 'Тариф версионируется: старый не перезаписывается, а закрывается датой valid_to = valid_from нового − 1 день. unit — снимок единицы услуги на момент тарифа. price_minor — копейки (ADR-0002); пересечение периодов одной услуги запрещено (INV-04).'
+  Note: 'Тариф услуги поставщика версионируется: старый не перезаписывается, а закрывается датой valid_to = valid_from нового − 1 день. unit — снимок единицы типа услуги на момент тарифа. price_minor — копейки (ADR-0002); пересечение периодов одной услуги поставщика запрещено (INV-04).'
 }
 
 Table meter {
   id text [pk]
-  account_id text [not null]
-  service_id text [not null]
+  property_id text [not null]
+  service_type_id text [not null]
   serial text [not null]
   kind text
   installed_on text
   verified_on text
   valid_until text
   retired_on text
+  retired_reason text
   replaced_meter_id text
   unit text [not null]
   note text
   created_at text [not null]
 
-  Note: 'Счётчик; valid_until — текущая дата окончания поверки (зеркало последней записи meter_verification); retired_on — вывод из эксплуатации; replaced_meter_id — счётчик, который заменён этим.'
+  Note: 'Счётчик в помещении для типа услуги; к поставщику и счёту не привязан, поэтому смена поставщика его не трогает. valid_until — текущая дата окончания поверки (зеркало последней записи meter_verification); retired_on — вывод из эксплуатации; retired_reason — причина вывода (значения до E-07, R-19); replaced_meter_id — счётчик, который заменён этим.'
 }
 
 Table meter_verification {
@@ -178,6 +195,7 @@ Table meter_reading {
   submitted_on text
   submission_marked_at text
   submission_channel text
+  supplier_id text
   note text
   created_by text [not null]
   created_at text [not null]
@@ -186,13 +204,13 @@ Table meter_reading {
     (meter_id, period) [unique]
   }
 
-  Note: 'Показание за период и отметка о передаче поставщику.'
+  Note: 'Показание за период и отметка о передаче поставщику; supplier_id — кому передано (nullable, заполняется вместе с отметкой). Одно показание на дату уходит одному поставщику.'
 }
 
 Table accrual {
   id text [pk]
   account_id text [not null]
-  service_id text [not null]
+  service_type_id text [not null]
   period varchar(7) [not null]
   amount_minor integer [not null]
   source text [not null]
@@ -202,11 +220,11 @@ Table accrual {
   created_at text [not null]
 
   indexes {
-    (account_id, service_id, period) [unique]
+    (account_id, service_type_id, period) [unique]
     (reversal_of) [unique]
   }
 
-  Note: 'Начисление за период; source = manual|template|import|recognition. UNIQUE (account_id, service_id, period) действует только для несторнированных строк (partial index WHERE reversal_of IS NULL); reversal_of уникален и ссылается на исходное начисление.'
+  Note: 'Начисление за период; поставщик определяется счётом, поэтому ссылка на тип услуги. source = manual|template|import|recognition. UNIQUE (account_id, service_type_id, period) действует только для несторнированных строк (partial index WHERE reversal_of IS NULL); reversal_of уникален и ссылается на исходное начисление.'
 }
 
 Table invoice {
@@ -233,12 +251,12 @@ Table invoice_line {
   id text [pk]
   invoice_id text [not null]
   accrual_id text
-  service_id text [not null]
+  service_type_id text [not null]
   amount_minor integer [not null]
   basis text
   created_at text [not null]
 
-  Note: 'Строка квитанции по услуге; accrual_id — основание строки (nullable для ручных строк).'
+  Note: 'Строка квитанции по типу услуги; поставщик — из счёта квитанции; accrual_id — основание строки (nullable для ручных строк).'
 }
 
 Table payment {
@@ -351,7 +369,7 @@ Table recognition_candidate {
   line_no integer [not null, default: 1]
   field text [not null]
   value text [not null]
-  service_id text
+  service_type_id text
   amount_minor integer
   confidence_bp integer [not null]
   bbox text
@@ -363,7 +381,7 @@ Table recognition_candidate {
     (import_job_id, page, line_no)
   }
 
-  Note: 'Распознанное поле с уверенностью; line_no группирует строки услуг одной квитанции; service_id/amount_minor задают услугу и сумму; финансовый документ создаётся только после подтверждения (INV-21).'
+  Note: 'Распознанное поле с уверенностью; line_no группирует строки услуг одной квитанции; service_type_id/amount_minor задают тип услуги и сумму, поставщик известен из задания импорта; финансовый документ создаётся только после подтверждения (INV-21).'
 }
 
 Table supplier_template {
@@ -428,28 +446,30 @@ Table schema_version {
 Ref: property.type_id > property_type.id
 Ref: account.property_id > property.id
 Ref: account.supplier_id > supplier.id
-Ref: service.supplier_id > supplier.id
-Ref: tariff.service_id > service.id
-Ref: meter.account_id > account.id
-Ref: meter.service_id > service.id
+Ref: supplier_service.supplier_id > supplier.id
+Ref: supplier_service.service_type_id > service_type.id
+Ref: tariff.supplier_service_id > supplier_service.id
+Ref: meter.property_id > property.id
+Ref: meter.service_type_id > service_type.id
 Ref: meter.replaced_meter_id > meter.id
 Ref: meter_verification.meter_id > meter.id
 Ref: meter_verification.created_by > profile.id
 Ref: meter_reading.meter_id > meter.id
+Ref: meter_reading.supplier_id > supplier.id
 Ref: accrual.account_id > account.id
-Ref: accrual.service_id > service.id
+Ref: accrual.service_type_id > service_type.id
 Ref: accrual.reversal_of > accrual.id
 Ref: invoice.account_id > account.id
 Ref: invoice_line.invoice_id > invoice.id
 Ref: invoice_line.accrual_id > accrual.id
-Ref: invoice_line.service_id > service.id
+Ref: invoice_line.service_type_id > service_type.id
 Ref: payment.account_id > account.id
 Ref: allocation.payment_id > payment.id
 Ref: allocation.invoice_id > invoice.id
 Ref: balance.account_id > account.id
 Ref: import_job.attachment_id > attachment.id
 Ref: recognition_candidate.import_job_id > import_job.id
-Ref: recognition_candidate.service_id > service.id
+Ref: recognition_candidate.service_type_id > service_type.id
 Ref: supplier_template.supplier_id > supplier.id
 Ref: supplier_template.sample_attachment_id > attachment.id
 Ref: audit_event.profile_id > profile.id

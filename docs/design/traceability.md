@@ -16,12 +16,12 @@
 | FR-01 | `catalog` | `property`, `property_type` | INV-12 | 0002 | US-02 | E-03 | `validate-docs` (refs, типы), интеграционный тест «объект переживает перезапуск; архив не удаляет историю», UI-тесты S-04 (поиск, фильтр, архив, валидация) |
 | FR-02 | `catalog` | `supplier` | — | — | US-02 | E-03 | `validate-docs` (refs), unit-тест дублей |
 | FR-03 | `catalog` | `account` | INV-12 | 0003 | US-02 | E-03 | тест «закрытие при долге запрещено» |
-| FR-04 | `catalog` | `service`, `tariff` | INV-01, INV-04 | 0002 | US-03 | E-03 | unit-тест выбора тарифа на дату, тест пересечения |
+| FR-04 | `catalog` | `service_type`, `supplier_service`, `tariff` | INV-01, INV-04 | 0002, 0022 | US-03 | E-03 | unit-тест выбора тарифа на дату, тест пересечения, тест независимых цен двух поставщиков |
 | FR-05 | `billing` | `accrual` | INV-01, INV-02, INV-11, INV-13 | 0002, 0004 | US-04, US-05 (после v1) | E-04 | unit-тесты ручного ввода, шаблона и дубля; QS-03 — после v1 |
 | FR-06 | `invoicing` | `invoice`, `invoice_line` | INV-03, INV-05, INV-06 | 0003, 0007 | US-06 | E-05 | тест «сумма = строки»; тест «issued неизменяем» |
 | FR-07 | `payments` | `payment` | INV-13, INV-22 | 0003, 0004 | US-07 | E-06 | QS-02; unit-тест повторного ключа и платежа без квитанции |
 | FR-08 | `ledger` | `allocation`, `balance` | INV-07…INV-10, INV-22 | 0003 | US-08 | E-06 | QS-04; конкурентный тест распределения; тест отмены распределения |
-| FR-09 | `metering` | `meter`, `meter_reading`, `meter_verification` | INV-14, INV-15 | — | US-09 | E-07 | unit-тесты убывания (с подтверждением), дубля, срока поверки, истории и замены счётчика |
+| FR-09 | `metering` | `meter`, `meter_reading`, `meter_verification` | INV-14, INV-15 | 0022 | US-09 | E-07 | unit-тесты убывания (с подтверждением), дубля, срока поверки, истории и замены счётчика |
 | FR-10 | `metering` | `meter_reading` | INV-14 | — | US-10 | E-07 | тест «отметка не меняет показание»; опциональные дата и способ |
 | FR-11 | `reminders` | `reminder` | INV-17 | — | US-11 | E-08 | тест идемпотентного создания и закрытия |
 | FR-12 | `documents` | `attachment` | INV-19 | 0008 | US-12 | E-10 | тест целостности по `sha256`, тест BLOB в файле данных |

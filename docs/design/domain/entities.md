@@ -71,32 +71,45 @@
 поэтому фактическая проверка появится вместе с E-06.
 Владелец: `catalog`.
 
-### `service` — услуга
+### `service_type` — тип услуги
 
-`name`, `unit` (код единицы: `m3` / `gcal` / `kwh` / `person` / `m2` / `month` /
+`name`, `name_key` (trim + нижний регистр; **уникален** — «Вода» и «вода» один
+тип), `unit` (код единицы: `m3` / `gcal` / `kwh` / `person` / `m2` / `month` /
 `piece`; подписи — в [glossary.md](glossary.md) и `shared/units.ts`), `category`,
-опциональная привязка к поставщику (`supplier_id`), `is_active`. Услуга не
-удаляется физически: архив скрывает её из выбора, начисления и тарифы сохраняют
-историю. Справочник общий: привязка к поставщику сужает выбор в E-04, но не
-обязательна. Владелец: `catalog`.
+`is_active`. Ресурс общего справочника: «Вода», «Тепло», «Электроэнергия»; от
+поставщика не зависит. Тип не удаляется физически: архив скрывает его из выбора,
+история сохраняется. Владелец: `catalog`.
+
+### `supplier_service` — услуга поставщика
+
+`supplier_id`, `service_type_id`, `is_active`, `note`. Пара «поставщик + тип
+услуги» уникальна: у одного поставщика один вид услуги — одна запись с одной
+историей тарифов. Пример: «Вода от РСО Лютик» и «Вода от УК Бабайка» — две разные
+услуги одного типа. Не удаляется физически: архив скрывает услугу из выбора,
+тарифы и начисления сохраняют историю. Владелец: `catalog`.
 
 ### `tariff` — тариф
 
-`service_id`, `price_minor` (копейки, ADR-0002), `unit` — **снимок** единицы
-услуги на момент тарифа (правка единицы услуги не переписывает историю),
-`valid_from`, `valid_to`. Периоды действия одной услуги не пересекаются (INV-04);
-изменение тарифа — новая запись, старый закрывается `valid_to` = день до
-`valid_from` нового. Правки суммы на месте нет. Владелец: `catalog`.
+`supplier_service_id`, `price_minor` (копейки, ADR-0002), `unit` — **снимок**
+единицы типа услуги на момент тарифа (правка единицы типа не переписывает
+историю), `valid_from`, `valid_to`. Периоды действия одной услуги поставщика не
+пересекаются (INV-04); изменение тарифа — новая запись, старый закрывается
+`valid_to` = день до `valid_from` нового. Правки суммы на месте нет. Владелец:
+`catalog`.
 
 ## 3. Счётчики
 
 ### `meter` — счётчик
 
-`account_id`, `service_id`, `serial`, `kind`, `installed_on`, `verified_on`,
-`valid_until`, `retired_on`, `replaced_meter_id`, `unit`. `verified_on`/`valid_until` —
-зеркало последней записи `meter_verification`; после `valid_until` показания не
-принимаются без новой поверки (INV-15). `retired_on` — вывод из эксплуатации;
-`replaced_meter_id` — счётчик, который был заменён этим. Владелец: `metering`.
+`property_id`, `service_type_id`, `serial`, `kind`, `installed_on`, `verified_on`,
+`valid_until`, `retired_on`, `retired_reason`, `replaced_meter_id`, `unit`.
+Счётчик — физический прибор в помещении для одного типа услуги; к поставщику или
+лицевому счёту он не привязан, поэтому смена поставщика не требует замены.
+`verified_on`/`valid_until` — зеркало последней записи `meter_verification`; после
+`valid_until` показания не принимаются без новой поверки (INV-15). `retired_on` —
+вывод из эксплуатации; `retired_reason` — почему выведен (список значений
+согласуется до E-07, R-19); `replaced_meter_id` — счётчик, который был заменён
+этим. Владелец: `metering`.
 
 ### `meter_verification` — поверка
 
@@ -106,22 +119,27 @@
 ### `meter_reading` — показание
 
 `meter_id`, `period`, `value numeric(14,3)`, `taken_on`, `submitted_on`,
-`submission_marked_at`, `submission_channel`, `created_by`. Одно показание на
-счётчик и период (INV-14); значение не меньше предыдущего, кроме явно
-подтверждённого исправления с причиной (ошибка ввода, замена/переход счётчика) и
-записи в аудите. Отметка о передаче не меняет значение; `submission_marked_at`
-ставится автоматически, `submitted_on` — опциональная фактическая дата,
-`submission_channel` — опциональный способ (личный кабинет/телефон/бумага).
-Владелец: `metering`.
+`submission_marked_at`, `submission_channel`, `supplier_id`, `created_by`. Одно
+показание на счётчик и период (INV-14); значение не меньше предыдущего, кроме
+явно подтверждённого исправления с причиной (ошибка ввода, замена/переход
+счётчика) и записи в аудите. Отметка о передаче не меняет значение;
+`submission_marked_at` ставится автоматически, `submitted_on` — опциональная
+фактическая дата, `submission_channel` — опциональный способ
+(личный кабинет/телефон/бумага). `supplier_id` — поставщик, которому передано
+показание (nullable; заполняется вместе с отметкой). Одно показание на дату
+уходит одному поставщику, даже если счета открыты у нескольких. Владелец:
+`metering`.
 
 ## 4. Начисления и квитанции
 
 ### `accrual` — начисление
 
-`account_id`, `service_id`, `period`, `amount_minor`, `source`
+`account_id`, `service_type_id`, `period`, `amount_minor`, `source`
 (`manual` / `template` / `import` / `recognition`), `external_ref`, `reversal_of`,
-`created_by`. Начисление не редактируется после создания: исправление — сторно и
-новая запись (INV-11). Уникальность `(account_id, service_id, period)` действует
+`created_by`. Поставщик начисления определяется лицевым счётом, поэтому
+начисление ссылается на тип услуги, а не на услугу поставщика. Начисление не
+редактируется после создания: исправление — сторно и новая запись (INV-11).
+Уникальность `(account_id, service_type_id, period)` действует
 только для несторнированных строк (partial index `WHERE reversal_of IS NULL`), а
 `reversal_of` уникален и ссылается на исходное начисление: дубли при повторном
 импорте и повторное сторно запрещены (INV-13). Владелец: `billing`.
@@ -139,9 +157,10 @@
 
 ### `invoice_line` — строка квитанции
 
-`invoice_id`, `accrual_id` (основание строки, nullable), `service_id`,
+`invoice_id`, `accrual_id` (основание строки, nullable), `service_type_id`,
 `amount_minor`, `basis` — основание расчёта для пользователя (тариф, показание,
-норматив). Владелец: `invoicing`.
+норматив). Поставщик строки определяется счётом квитанции. Владелец:
+`invoicing`.
 
 ## 5. Платежи и распределения
 
@@ -201,10 +220,11 @@
 ### `recognition_candidate` — кандидат распознавания
 
 `import_job_id`, `page`, `line_no`, `field` (`period`, `supplier`, `account`,
-`service`, `amount`, `total`, `due_on`), `value`, `service_id`, `amount_minor`,
-`confidence_bp`, `bbox`, `accepted`, `corrected`. Несколько строк услуг одной
-квитанции различаются `line_no`; `service_id`/`amount_minor` задают услугу и сумму
-строки. Кандидат не является финансовым документом; он превращается в
+`service_type`, `amount`, `total`, `due_on`), `value`, `service_type_id`,
+`amount_minor`, `confidence_bp`, `bbox`, `accepted`, `corrected`. Несколько строк
+услуг одной квитанции различаются `line_no`; `service_type_id`/`amount_minor`
+задают тип услуги и сумму строки, поставщик известен из задания импорта. Кандидат
+не является финансовым документом; он превращается в
 начисление/квитанцию только после подтверждения пользователем (INV-21).
 Владелец: `recognition`.
 
@@ -246,10 +266,13 @@
 | Агрегат | Корень | Внутри | Внешние ссылки |
 |---|---|---|---|
 | Профиль | `profile` | `setting` | аудит |
+| Тип услуги | `service_type` | — | `supplier_service`, `meter`, `accrual` |
+| Услуга поставщика | `supplier_service` | — | `supplier`, `service_type`, `tariff` |
+| Тариф | `tariff` | — | `supplier_service` |
 | Объект | `property` | — | `account`, `property_type` |
-| Лицевой счёт | `account` | — | `meter`, `accrual`, `invoice`, `payment`, `balance` |
-| Счётчик | `meter` | `meter_reading`, `meter_verification` | `account`, `service` |
-| Начисление | `accrual` | — | `account`, `service` |
+| Лицевой счёт | `account` | — | `accrual`, `invoice`, `payment`, `balance` |
+| Счётчик | `meter` | `meter_reading`, `meter_verification` | `property`, `service_type` |
+| Начисление | `accrual` | — | `account`, `service_type` |
 | Квитанция | `invoice` | `invoice_line` | `account`, `accrual` |
 | Платёж | `payment` | — | `account` |
 | Распределение | `allocation` | — | `payment`, `invoice` |
